@@ -42,7 +42,14 @@ const App = (() => {
   function montarLogos() {
     const tpl = $('#tpl-logo');
     document.querySelectorAll('.logo-slot').forEach((slot) => {
-      if (slot.childElementCount === 0) slot.appendChild(tpl.content.cloneNode(true));
+      if (slot.childElementCount) return;
+      // Usa a logo real (logo.jpg); se faltar, cai no SVG da marca.
+      const img = document.createElement('img');
+      img.src = 'assets/img/logo.jpg';
+      img.alt = 'Connect ONG';
+      img.className = 'w-full h-full object-cover rounded-full';
+      img.onerror = () => { const svg = tpl.content.cloneNode(true); img.replaceWith(svg); };
+      slot.appendChild(img);
     });
   }
 
@@ -753,7 +760,7 @@ const App = (() => {
         <div class="flex-1 flex flex-col bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden min-w-0">
           <div class="flex items-center gap-3 p-4 border-b border-gray-100">
             <button id="dora-menu" class="md:hidden w-9 h-9 rounded-lg bg-background flex items-center justify-center"><i class="ph ph-list text-lg"></i></button>
-            <div class="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-accent flex-shrink-0"><i class="ph-fill ph-sparkle text-xl"></i></div>
+            <div class="w-10 h-10 rounded-full bg-primary-light flex items-center justify-center overflow-hidden flex-shrink-0"><img src="assets/img/dora_mascote.svg" alt="Dora" class="w-full h-full object-contain" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'ph-fill ph-sparkle text-xl text-primary'}))"></div>
             <div class="flex-1 min-w-0"><p class="font-montserrat font-bold text-textDark truncate">Dora</p><p class="text-xs text-textGrey">Assistente de doações • IA</p></div>
             <button id="dora-nova2" class="md:hidden w-9 h-9 rounded-lg bg-background flex items-center justify-center"><i class="ph ph-plus text-lg"></i></button>
           </div>
@@ -909,17 +916,20 @@ const App = (() => {
   }
   function cardOng(o) {
     const fav = state.favIds && state.favIds.has(o.id);
-    return `<div data-perfil-ong="${o.id}" class="bg-white rounded-2xl shadow-card border border-gray-100 p-5 hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer">
-      <div class="flex items-start gap-3">
-        ${UI.avatar(o.nome, 'w-12 h-12')}
-        <div class="flex-1 min-w-0">
-          <p class="font-montserrat font-bold text-textDark leading-tight flex items-center gap-1">${UI.esc(o.nome)} ${o.verificada ? '<i class="ph-fill ph-seal-check text-primary"></i>' : ''}</p>
-          <p class="text-xs text-textGrey"><i class="ph ph-map-pin"></i> ${UI.esc(o.cidade || 'Brasil')}</p>
-          <div class="mt-1">${UI.estrelas(o.notaMedia)} <span class="text-xs text-textGrey">${o.totalAvaliacoes || 0}</span></div>
-        </div>
-        <button data-fav="${o.id}" class="w-9 h-9 rounded-full flex items-center justify-center ${fav ? 'text-accent' : 'text-gray-300 hover:text-accent'}"><i class="ph${fav ? '-fill' : ''} ph-star text-xl"></i></button>
+    const capa = UI.fotoSrc(o.capaBase64);
+    return `<div data-perfil-ong="${o.id}" class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer group">
+      <div class="h-16 relative ${capa ? '' : 'bg-gradient-to-r from-primary to-primary-dark'}" ${capa ? `style="background-image:url('${capa}');background-size:cover;background-position:center"` : ''}>
+        <button data-fav="${o.id}" class="absolute top-2 right-2 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center ${fav ? 'text-accent' : 'text-gray-400 hover:text-accent'} shadow"><i class="ph${fav ? '-fill' : ''} ph-star text-lg"></i></button>
       </div>
-      <p class="text-sm text-textGrey mt-3 line-clamp-2">${UI.esc(o.descricao || '')}</p>
+      <div class="px-5 pb-5">
+        <div class="w-14 h-14 rounded-2xl border-4 border-white -mt-7 relative bg-white">${UI.avatar(o.nome, 'w-full h-full text-base rounded-xl')}
+          ${o.verificada ? '<span class="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center"><i class="ph-fill ph-seal-check text-primary text-sm"></i></span>' : ''}
+        </div>
+        <p class="font-montserrat font-bold text-textDark leading-tight mt-2 group-hover:text-primary transition-colors">${UI.esc(o.nome)}</p>
+        <p class="text-xs text-textGrey mt-0.5"><i class="ph ph-map-pin"></i> ${UI.esc(o.cidade || 'Brasil')}</p>
+        <div class="mt-1">${UI.estrelas(o.notaMedia)} <span class="text-xs text-textGrey">${(Number(o.notaMedia) || 0).toFixed(1)} (${o.totalAvaliacoes || 0})</span></div>
+        <p class="text-sm text-textGrey mt-2 line-clamp-2">${UI.esc(o.descricao || 'Sem descrição.')}</p>
+      </div>
     </div>`;
   }
 
@@ -1156,11 +1166,16 @@ const App = (() => {
   async function viewFavoritos() {
     root().innerHTML = carregando();
     try {
-      const favs = await API.favoritos();
+      const [favs, ongs] = await Promise.all([API.favoritos(), API.ongs()]);
       await carregarFavIds(true);
-      root().innerHTML = favs.length
-        ? `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 slide-up">${favs.map(cardOng).join('')}</div>`
-        : vazio('ph-star', 'Sem favoritos ainda', 'Favorite ONGs para acompanhá-las aqui.');
+      const porId = {};
+      for (const o of ongs) porId[o.id] = o;
+      // O endpoint devolve {alvoNome, alvoId} — enriquece com os dados reais da ONG.
+      const cards = favs.map((f) => porId[f.alvoId] || { id: f.alvoId, nome: f.alvoNome, cidade: '', notaMedia: 0, totalAvaliacoes: 0, descricao: '' });
+      root().innerHTML = cards.length
+        ? `<p class="text-textGrey font-medium mb-5 slide-up">${cards.length} ONG(s) favorita(s) — acompanhe suas necessidades e campanhas.</p>
+           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 slide-up">${cards.map(cardOng).join('')}</div>`
+        : vazio('ph-star', 'Sem favoritos ainda', 'Toque na estrela de uma ONG para acompanhá-la aqui.');
     } catch (e) { root().innerHTML = erroBox(e.message, 'favoritos'); }
   }
 
@@ -1272,18 +1287,19 @@ const App = (() => {
   }
   function cardDoacao(d) {
     const c = UI.cat(d.categoria);
-    return `<div class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
-      <div class="h-24 flex items-center justify-center text-4xl ${c.cls} relative">${c.emoji}
-        <div class="absolute top-2 right-2 flex gap-1">
-          <button data-editdoacao="${d.id}" class="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center text-textDark hover:text-primary shadow"><i class="ph ph-pencil-simple"></i></button>
-          <button data-deldoacao="${d.id}" class="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center text-textDark hover:text-red-500 shadow"><i class="ph ph-trash"></i></button>
+    return `<div class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden group hover:-translate-y-0.5 hover:shadow-md transition-all">
+      <div class="h-28 flex items-center justify-center text-5xl ${c.cls} relative">${c.emoji}
+        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors"></div>
+        <div class="absolute top-2.5 right-2.5 flex gap-1.5">
+          <button data-editdoacao="${d.id}" title="Editar" class="w-9 h-9 bg-white rounded-full flex items-center justify-center text-textGrey hover:text-primary shadow-md transition-colors"><i class="ph-bold ph-pencil-simple text-base"></i></button>
+          <button data-deldoacao="${d.id}" title="Excluir" class="w-9 h-9 bg-white rounded-full flex items-center justify-center text-textGrey hover:text-red-500 shadow-md transition-colors"><i class="ph-bold ph-trash text-base"></i></button>
         </div>
       </div>
       <div class="p-5">
         <div class="flex items-center gap-2 mb-2">${UI.catChip(d.categoria)} ${d.urgente ? '<span class="text-xs font-bold text-accent bg-accent-light px-2.5 py-1 rounded-full">Urgente</span>' : ''}</div>
         <h4 class="font-montserrat font-bold text-textDark text-lg">${UI.esc(d.nome)}</h4>
         <p class="text-sm text-textGrey mt-1 line-clamp-2">${UI.esc(d.descricao || '')}</p>
-        ${d.quantidade ? `<p class="text-xs text-textGrey mt-2 font-semibold"><i class="ph ph-stack"></i> Quantidade: ${d.quantidade}</p>` : ''}
+        ${d.quantidade ? `<p class="text-xs text-textGrey mt-3 font-semibold inline-flex items-center gap-1 bg-background px-2.5 py-1 rounded-full"><i class="ph ph-stack text-primary"></i> ${d.quantidade} unidade(s)</p>` : ''}
       </div></div>`;
   }
   function cardDoacaoFinanceira(d) {
@@ -1362,12 +1378,26 @@ const App = (() => {
     localStorage.setItem(PREF_CACHE, JSON.stringify(p));
   }
 
+  // Compara só os campos de preferência (ignora id/usuarioId e normaliza null/0/false).
+  const CAMPOS_PREF = ['tema', 'tamanhoFonte', 'altoContraste', 'fonteDislexia', 'navegacaoSimplificada',
+    'notifMensagens', 'notifMatch', 'notifCampanhas', 'notifNecessidades', 'notifNoticias',
+    'mostrarTelefone', 'mostrarEmail', 'perfilPublico', 'receberContatos', 'receberSugestoes', 'doisFatores'];
+  function prefsIguais(a, b) {
+    if (!a || !b) return false;
+    for (const k of CAMPOS_PREF) {
+      let va = a[k], vb = b[k];
+      if (k === 'doisFatores') { va = va ? 1 : 0; vb = vb ? 1 : 0; }
+      else if (typeof PREFS_PADRAO[k] === 'boolean') { va = !!va; vb = !!vb; }
+      if (va !== vb) return false;
+    }
+    return true;
+  }
   let cfgDraft = null;
   function viewConfig() {
     const base = state.prefs || lerPrefsCache();
     if (!cfgDraft) cfgDraft = { ...base };
     const p = cfgDraft;
-    const mudou = JSON.stringify({ ...base }) !== JSON.stringify(p);
+    const mudou = !prefsIguais(base, p);
     const u = API.usuario() || {};
     root().innerHTML = `
       <div class="max-w-2xl mx-auto space-y-5 slide-up pb-4">
@@ -1634,6 +1664,18 @@ const App = (() => {
     { n: 10, t: 'Redução das desigualdades', cor: '#dd1367' },
     { n: 17, t: 'Parcerias e meios de implementação', cor: '#19486a' },
   ];
+  const KVERSOES = [
+    { numero: 'v1.9', titulo: 'Frete inteligente e mais IA', atual: true, mudancas: ['Navegação mais fluida com resposta ao toque', 'Simulador de frete no perfil da ONG (distância + peso)', 'IA estima o peso e avisa se a categoria não combina', 'Resumo de impacto da ONG escrito por IA', '"Sugestões para você" por perfil e cidade'] },
+    { numero: 'v1.8', titulo: 'Revisão final de segurança', mudancas: ['Sessão protegida (volta ao login se expirar)', 'Privacidade real: telefone/e-mail só quando a ONG permite', 'Proteção contra abuso em contribuições/cadastro/senha'] },
+    { numero: 'v1.7', titulo: 'Assistente com Inteligência Artificial', mudancas: ['Dora, assistente de doação com IA', 'Análise de foto: identifica o item e sugere ONGs', 'Histórico de conversas estilo ChatGPT'] },
+    { numero: 'v1.6', titulo: 'Tempo real & Segurança extra', mudancas: ['Matches e interesses em tempo real', '2FA no login', 'Alterar e-mail com confirmação de senha'] },
+    { numero: 'v1.5', titulo: 'Comunidade & Controle', mudancas: ['Bloqueio de doador (estilo WhatsApp)', 'Estado e Cidade pelo IBGE (offline)', 'Alto contraste e navegação simplificada', '"Como chegar" no Google Maps'] },
+    { numero: 'v1.4', titulo: 'Experiência renovada', mudancas: ['Redesenho do app do doador (5 abas)', 'Matches em 3 abas', 'Perfil público do doador (avaliação estilo Uber)', 'PIX em 2 fases + streak no ranking', 'Chat estilo WhatsApp'] },
+    { numero: 'v1.3', titulo: 'Segurança & Conformidade', mudancas: ['Login com JWT e autorização por dono', 'LGPD + papel de administrador', 'Exclusão segura de conta', '"Esqueci a senha" + limite de tentativas'] },
+    { numero: 'v1.2', titulo: 'Engajamento & Doações', mudancas: ['Feed com busca e filtros', 'Campanhas + PIX', 'Timeline, Mural, Ranking, Conquistas e Favoritos'] },
+    { numero: 'v1.1', titulo: 'Confiança & Transparência', mudancas: ['Verificação de ONG (selo)', 'Prestação de contas', 'Avaliações das ONGs', 'Central de notificações'] },
+    { numero: 'v1.0', titulo: 'Fundação & Match', mudancas: ['Cadastro de doadores e ONGs', 'Publicação de necessidades', 'Match (interesse e aceite)', 'Chat entre as partes'] },
+  ];
   const FAQ = [
     ['O Connect ONG cobra alguma taxa?', 'Não. A plataforma é gratuita para doadores e ONGs.'],
     ['Como sei que a ONG é confiável?', 'ONGs verificadas têm selo, nota de avaliações e score de transparência com prestação de contas.'],
@@ -1697,6 +1739,21 @@ const App = (() => {
             ${FAQ.map(([q, a]) => `<details class="bg-white rounded-2xl shadow-card border border-gray-100 p-5 group">
               <summary class="font-bold text-textDark cursor-pointer flex items-center justify-between">${q}<i class="ph ph-caret-down group-open:rotate-180 transition-transform"></i></summary>
               <p class="text-sm text-textGrey mt-2">${a}</p></details>`).join('')}
+          </div>
+        </div>
+        <!-- Versões -->
+        <div>
+          <h4 class="text-xl font-montserrat font-bold text-textDark mb-4 text-center">Versões</h4>
+          <div class="space-y-3 max-w-2xl mx-auto">
+            ${KVERSOES.map((v) => `<details class="bg-white rounded-2xl shadow-card border border-gray-100 p-5 group" ${v.atual ? 'open' : ''}>
+              <summary class="cursor-pointer flex items-center justify-between">
+                <span class="flex items-center gap-2"><span class="text-xs font-bold text-primary bg-primary-light px-2.5 py-1 rounded-full">${v.numero}</span>
+                  <span class="font-bold text-textDark">${UI.esc(v.titulo)}</span>
+                  ${v.atual ? '<span class="text-[10px] font-bold text-white bg-accent px-2 py-0.5 rounded-full">Atual</span>' : ''}</span>
+                <i class="ph ph-caret-down group-open:rotate-180 transition-transform"></i>
+              </summary>
+              <ul class="mt-3 space-y-1.5">${v.mudancas.map((m) => `<li class="text-sm text-textGrey flex gap-2"><i class="ph ph-check text-primary mt-0.5"></i><span>${UI.esc(m)}</span></li>`).join('')}</ul>
+            </details>`).join('')}
           </div>
         </div>
         <p class="text-center text-xs text-textGrey">Projeto Integrador • COTIL / UNICAMP • 2026</p>
@@ -1800,6 +1857,13 @@ const App = (() => {
   };
   function irPara(rota) {
     if (!VIEWS[rota]) rota = 'inicio';
+    // Ao sair dos Ajustes com alterações não salvas, confirma (salvar/descartar).
+    if (state.rota === 'config' && rota !== 'config' && cfgDraft && state.prefs && !prefsIguais(cfgDraft, state.prefs)) {
+      if (!confirm('Você tem alterações não salvas nos Ajustes. Descartar as alterações?')) return;
+      cfgDraft = null; aplicarPreferencias(state.prefs);
+    }
+    // Ao entrar nos Ajustes, re-sincroniza o rascunho com o que está salvo.
+    if (rota === 'config' && state.rota !== 'config') cfgDraft = null;
     state.rota = rota;
     $('#header-title').textContent = TITULOS[rota] || 'Connect ONG';
     marcarNav(rota);
@@ -1997,8 +2061,9 @@ const App = (() => {
   // =========================================================================
   function ligarCliques() {
     document.addEventListener('click', (e) => {
-      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir],[data-dora-abrir],[data-dora-menu],[data-editdoacao],[data-deldoacao]');
+      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir],[data-dora-abrir],[data-dora-menu],[data-editdoacao],[data-deldoacao],[data-cat]');
       if (!alvo) return;
+      if (alvo.dataset.cat) { explorar.categoria = alvo.dataset.cat; return viewExplorar(); }
       if (alvo.dataset.editdoacao) return editarDoacao(alvo.dataset.editdoacao);
       if (alvo.dataset.deldoacao) return excluirDoacao(alvo.dataset.deldoacao);
       if (alvo.dataset.doraMenu) return doraMenuConversa(alvo.dataset.doraMenu);
