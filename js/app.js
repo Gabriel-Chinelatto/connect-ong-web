@@ -67,7 +67,7 @@ const App = (() => {
     matches: 'Meus Matches', campanhas: 'Campanhas', dora: 'Dora — Assistente de Doação',
     ongs: 'ONGs', favoritos: 'Favoritos', impacto: 'Seu Impacto',
     ranking: 'Ranking de Transparência', doacoes: 'Minhas Doações', config: 'Ajustes',
-    sobre: 'Sobre o Connect ONG',
+    sobre: 'Sobre o Connect ONG', atividades: 'Atividades da Comunidade',
   };
 
   function botaoNav(r) {
@@ -190,7 +190,7 @@ const App = (() => {
             { r: 'impacto', i: 'ph-chart-line-up', l: 'Impacto' },
             { r: 'ranking', i: 'ph-trophy', l: 'Ranking' },
             { r: 'doacoes', i: 'ph-hand-heart', l: 'Doações' },
-            { r: 'campanhas', i: 'ph-megaphone', l: 'Campanhas' },
+            { r: 'atividades', i: 'ph-pulse', l: 'Atividades' },
           ].map((a) => `<button data-rota="${a.r}" class="bg-white rounded-2xl border border-gray-100 shadow-card py-4 flex flex-col items-center gap-1.5 hover:-translate-y-0.5 hover:border-primary transition-all">
             <i class="ph-fill ${a.i} text-2xl text-primary"></i><span class="text-xs font-bold text-textDark">${a.l}</span></button>`).join('')}
         </div>
@@ -1704,6 +1704,30 @@ const App = (() => {
   }
 
   // =========================================================================
+  // ATIVIDADES (timeline global da comunidade)
+  // =========================================================================
+  const ATIV_ICON = { INTERESSE: 'ph-hand-heart', MATCH: 'ph-heart', DOACAO: 'ph-gift', CAMPANHA: 'ph-megaphone', PRESTACAO: 'ph-receipt', NECESSIDADE: 'ph-package', AVALIACAO: 'ph-star' };
+  async function viewAtividades() {
+    root().innerHTML = carregando();
+    try {
+      const l = await API.atividades(40);
+      root().innerHTML = `
+        <p class="text-textGrey font-medium mb-5 slide-up">O que está acontecendo agora na comunidade Connect ONG.</p>
+        <div class="max-w-2xl slide-up">${(l || []).length ? l.map((a) => `
+          <div class="flex gap-3 pb-4">
+            <div class="flex flex-col items-center">
+              <div class="w-10 h-10 rounded-full bg-primary-light flex items-center justify-center text-primary flex-shrink-0"><i class="ph-fill ${ATIV_ICON[a.tipo] || 'ph-circle'}"></i></div>
+              <div class="w-0.5 flex-1 bg-gray-100 mt-1"></div>
+            </div>
+            <div class="flex-1 min-w-0 pb-2">
+              <p class="text-sm text-textDark">${UI.esc(a.descricao || '')}</p>
+              <p class="text-xs text-textGrey mt-0.5">${a.ongNome ? `<button data-perfil-ong="${a.ongId}" class="font-semibold text-primary">${UI.esc(a.ongNome)}</button> · ` : ''}${UI.dataCurta(a.dataCriacao)} ${UI.horaCurta(a.dataCriacao)}</p>
+            </div>
+          </div>`).join('') : vazio('ph-pulse', 'Sem atividades', 'Volte mais tarde.')}</div>`;
+    } catch (e) { root().innerHTML = erroBox(e.message, 'atividades'); }
+  }
+
+  // =========================================================================
   // NOTIFICAÇÕES (sino)
   // =========================================================================
   async function atualizarSino() {
@@ -1772,7 +1796,7 @@ const App = (() => {
   const VIEWS = {
     inicio: viewInicio, explorar: viewExplorar, matches: viewMatches, campanhas: viewCampanhas, dora: viewDora,
     ongs: viewOngs, favoritos: viewFavoritos, impacto: viewImpacto, ranking: viewRanking,
-    doacoes: viewDoacoes, config: viewConfig, sobre: viewSobre,
+    doacoes: viewDoacoes, config: viewConfig, sobre: viewSobre, atividades: viewAtividades,
   };
   function irPara(rota) {
     if (!VIEWS[rota]) rota = 'inicio';
