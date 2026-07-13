@@ -664,42 +664,55 @@ const App = (() => {
     document.querySelectorAll('.pix-chip').forEach((b) => b.addEventListener('click', () => { $('#pix-valor').value = b.dataset.valor; }));
     $('#pix-confirmar').addEventListener('click', () => gerarPix(c));
   }
-  function gerarPix(c) {
+  async function gerarPix(c) {
     const valor = Number($('#pix-valor').value);
     if (!valor || valor < 1) { UI.toast('Informe um valor válido.', 'aviso'); return; }
-    // Fase 1: "gera" o código PIX (copia e cola) para o visual da doação.
-    const codigo = '00020126BR.GOV.BCB.PIX' + String(c.id).padStart(4, '0') + Math.round(valor * 100) + '5204CONNECTONG';
+    const btn0 = $('#pix-confirmar'); if (btn0) { btn0.disabled = true; btn0.innerHTML = '<i class="ph ph-circle-notch spin text-xl"></i> Gerando…'; }
+    let codigo;
+    try { const r = await API.gerarCodigoPix(valor); codigo = (r && r.codigoPix) || ''; }
+    catch (e) { UI.toast(e.message, 'erro'); if (btn0) { btn0.disabled = false; btn0.innerHTML = '<i class="ph-fill ph-pix-logo text-xl"></i> Gerar PIX'; } return; }
+    // Fase 2: mostra o código PIX real (copia e cola) + QR.
     $('#modal-card').innerHTML = `
       <div class="p-7 text-center">
         <h3 class="text-xl font-montserrat font-bold text-textDark mb-1">Pague ${UI.brl(valor)} via PIX</h3>
-        <p class="text-sm text-textGrey mb-5">Escaneie o QR ou copie o código</p>
-        <div class="w-44 h-44 mx-auto bg-white border-4 border-primary rounded-2xl flex items-center justify-center mb-4">
-          <i class="ph ph-qr-code text-8xl text-primary"></i>
-        </div>
+        <p class="text-sm text-textGrey mb-5">Copie o código e pague no seu banco</p>
+        <div class="w-44 h-44 mx-auto bg-white border-4 border-primary rounded-2xl flex items-center justify-center mb-4"><i class="ph ph-qr-code text-8xl text-primary"></i></div>
         <div class="flex items-center gap-2 bg-background rounded-xl p-3 mb-5">
           <code class="text-xs text-textGrey truncate flex-1 text-left">${UI.esc(codigo)}</code>
           <button id="pix-copiar" class="text-primary font-bold text-xs flex-shrink-0"><i class="ph ph-copy"></i> Copiar</button>
         </div>
-        <button id="pix-pago" class="w-full py-4 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-60 flex items-center justify-center gap-2">
-          <i class="ph-fill ph-check-circle text-xl"></i> Já paguei
-        </button>
+        <button id="pix-pago" class="w-full py-4 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-60 flex items-center justify-center gap-2"><i class="ph-fill ph-check-circle text-xl"></i> Já paguei</button>
       </div>`;
     $('#pix-copiar').addEventListener('click', () => { navigator.clipboard?.writeText(codigo); UI.toast('Código copiado!', 'info'); });
     $('#pix-pago').addEventListener('click', async (e) => {
-      const btn = e.currentTarget; btn.disabled = true;
-      btn.innerHTML = '<i class="ph ph-circle-notch spin text-xl"></i> Confirmando…';
+      const btn = e.currentTarget; btn.disabled = true; btn.innerHTML = '<i class="ph ph-circle-notch spin text-xl"></i> Confirmando…';
       try {
-        // Fase 2: registra a contribuição real no backend.
-        await API.contribuir(c.id, valor, (API.usuario()?.nome) || 'Doador');
-        fecharModal();
-        UI.toast('Obrigado! Sua doação de ' + UI.brl(valor) + ' foi registrada 💚', 'ok');
+        // Fase 3: registra a doação financeira real e recebe o comprovante.
+        const comp = await API.doarFinanceiro({ ongId: c.ongId, doadorId: API.usuario().id, valor, codigoPix: codigo, campanhaId: c.id });
+        mostrarComprovante(comp || { valor, ongNome: c.ongNome, campanhaTitulo: c.titulo });
         state.campanhas = null;
         if (state.rota === 'campanhas') viewCampanhas();
       } catch (err) {
-        btn.disabled = false; btn.innerHTML = '<i class="ph-fill ph-check-circle text-xl"></i> Já paguei';
-        UI.toast(err.message, 'erro');
+        btn.disabled = false; btn.innerHTML = '<i class="ph-fill ph-check-circle text-xl"></i> Já paguei'; UI.toast(err.message, 'erro');
       }
     });
+  }
+  function mostrarComprovante(d) {
+    $('#modal-card').innerHTML = `
+      <div class="p-7 text-center">
+        <div class="w-16 h-16 bg-primary-light rounded-full flex items-center justify-center mx-auto mb-3 text-primary"><i class="ph-fill ph-check-circle text-4xl"></i></div>
+        <h3 class="text-xl font-montserrat font-extrabold text-textDark">Doação confirmada!</h3>
+        <p class="text-4xl font-montserrat font-black text-primary my-3">${UI.brl(d.valor)}</p>
+        <div class="bg-background rounded-2xl p-4 text-left text-sm space-y-2">
+          <div class="flex justify-between"><span class="text-textGrey">Para</span><span class="font-bold text-textDark">${UI.esc(d.ongNome || '')}</span></div>
+          ${d.campanhaTitulo ? `<div class="flex justify-between"><span class="text-textGrey">Campanha</span><span class="font-bold text-textDark">${UI.esc(d.campanhaTitulo)}</span></div>` : ''}
+          <div class="flex justify-between"><span class="text-textGrey">Status</span><span class="font-bold text-primary">${UI.esc(d.status || 'CONFIRMADO')}</span></div>
+          ${d.dataCriacao ? `<div class="flex justify-between"><span class="text-textGrey">Data</span><span class="font-bold text-textDark">${UI.dataCurta(d.dataCriacao)} ${UI.horaCurta(d.dataCriacao)}</span></div>` : ''}
+          ${d.id ? `<div class="flex justify-between"><span class="text-textGrey">Comprovante</span><span class="font-bold text-textDark">#${d.id}</span></div>` : ''}
+        </div>
+        <button id="comp-ok" class="w-full mt-5 py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-2xl">Concluir</button>
+      </div>`;
+    $('#comp-ok').addEventListener('click', () => { fecharModal(); UI.toast('Obrigado pela sua doação 💚', 'ok'); });
   }
 
   // =========================================================================
@@ -1157,10 +1170,13 @@ const App = (() => {
   async function viewImpacto() {
     root().innerHTML = carregando();
     try {
-      const [inter, conq] = await Promise.all([API.meusInteresses(), API.conquistas().catch(() => [])]);
+      const [inter, conq, fin] = await Promise.all([
+        API.meusInteresses(), API.conquistas().catch(() => []), API.minhasDoacoesFinanceiras().catch(() => []),
+      ]);
       const concl = inter.filter((i) => i.status === 'CONCLUIDO').length;
       const ativos = inter.filter((i) => i.status === 'ACEITO').length;
       const ongsAjudadas = new Set(inter.filter((i) => i.status === 'CONCLUIDO').map((i) => i.ongId)).size;
+      const totalDinheiro = (fin || []).reduce((s, d) => s + (Number(d.valor) || 0), 0);
       root().innerHTML = `
         <div class="bg-gradient-to-br from-primary to-primary-dark rounded-[24px] p-8 text-white shadow-card mb-8 slide-up relative overflow-hidden">
           <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full"></div>
@@ -1169,12 +1185,13 @@ const App = (() => {
             <span class="text-6xl font-montserrat font-black">${concl}</span>
             <span class="text-xl font-bold mb-2">doações concluídas 🎉</span>
           </div>
+          ${totalDinheiro > 0 ? `<p class="text-white/90 font-semibold mt-2 relative">+ ${UI.brl(totalDinheiro)} doados em dinheiro</p>` : ''}
         </div>
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10 slide-up" style="animation-delay:.05s">
-          ${statCard('ph-heart', ativos, 'Matches ativos', 'text-accent')}
-          ${statCard('ph-hourglass', inter.filter((i) => i.status === 'PENDENTE').length, 'Aguardando', 'text-yellow-600')}
-          ${statCard('ph-buildings', ongsAjudadas, 'ONGs ajudadas', 'text-primary')}
-          ${statCard('ph-handshake', inter.length, 'Interações totais', 'text-blue-600')}
+          ${statCard('ph-heart', ativos, 'Matches ativos', 'text-accent', 'matches')}
+          ${statCard('ph-hourglass', inter.filter((i) => i.status === 'PENDENTE').length, 'Aguardando', 'text-yellow-600', 'matches')}
+          ${statCard('ph-buildings', ongsAjudadas, 'ONGs ajudadas', 'text-primary', 'ongs')}
+          ${statCard('ph-hand-heart', (fin || []).length, 'Doações $ feitas', 'text-blue-600', 'doacoes')}
         </div>
         <h4 class="text-xl font-montserrat font-bold text-textDark mb-4 flex items-center gap-2 slide-up"><i class="ph-fill ph-medal text-accent"></i> Conquistas</h4>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 slide-up" style="animation-delay:.1s">
@@ -1182,11 +1199,12 @@ const App = (() => {
         </div>`;
     } catch (e) { root().innerHTML = erroBox(e.message, 'impacto'); }
   }
-  function statCard(icon, valor, label, cor) {
-    return `<div class="bg-white rounded-2xl shadow-card border border-gray-100 p-5">
+  function statCard(icon, valor, label, cor, rota) {
+    const clic = rota ? `data-rota="${rota}"` : '';
+    return `<div ${clic} class="bg-white rounded-2xl shadow-card border border-gray-100 p-5 ${rota ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md transition-all' : ''}">
       <i class="ph-fill ${icon} text-2xl ${cor}"></i>
       <p class="text-3xl font-montserrat font-black text-textDark mt-2">${valor}</p>
-      <p class="text-sm text-textGrey font-semibold">${label}</p></div>`;
+      <p class="text-sm text-textGrey font-semibold">${label} ${rota ? '<i class="ph ph-arrow-right text-xs"></i>' : ''}</p></div>`;
   }
   function cardConquista(c) {
     const on = c.conquistada;
@@ -1234,21 +1252,33 @@ const App = (() => {
   async function viewDoacoes() {
     root().innerHTML = carregando();
     try {
-      const doacoes = await API.minhasDoacoes();
+      const [doacoes, fin] = await Promise.all([API.minhasDoacoes(), API.minhasDoacoesFinanceiras().catch(() => [])]);
+      state.minhasDoacoes = doacoes;
       root().innerHTML = `
-        <div class="flex justify-end mb-5 slide-up">
-          <button id="nova-doacao" class="bg-accent hover:bg-accent-dark text-white px-5 py-2.5 rounded-full font-bold text-sm shadow-md shadow-accent/20 flex items-center gap-2"><i class="ph-bold ph-plus"></i> Cadastrar doação</button>
+        <div class="flex items-center justify-between mb-4 slide-up">
+          <h4 class="text-lg font-montserrat font-bold text-textDark flex items-center gap-2"><i class="ph-fill ph-package text-primary"></i> Itens para doar</h4>
+          <button id="nova-doacao" class="bg-accent hover:bg-accent-dark text-white px-5 py-2.5 rounded-full font-bold text-sm shadow-md shadow-accent/20 flex items-center gap-2"><i class="ph-bold ph-plus"></i> Cadastrar</button>
         </div>
         ${doacoes.length
           ? `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 slide-up">${doacoes.map(cardDoacao).join('')}</div>`
-          : vazio('ph-hand-heart', 'Você ainda não cadastrou doações', 'Cadastre um item que deseja doar e apareça para as ONGs.')}`;
-      $('#nova-doacao').addEventListener('click', abrirNovaDoacao);
+          : vazio('ph-hand-heart', 'Você ainda não cadastrou itens', 'Cadastre um item que deseja doar e apareça para as ONGs.')}
+
+        <h4 class="text-lg font-montserrat font-bold text-textDark flex items-center gap-2 mt-10 mb-4 slide-up"><i class="ph-fill ph-pix-logo text-primary"></i> Doações em dinheiro</h4>
+        ${(fin || []).length
+          ? `<div class="space-y-3 slide-up">${fin.map(cardDoacaoFinanceira).join('')}</div>`
+          : vazio('ph-currency-circle-dollar', 'Nenhuma doação em dinheiro', 'Contribua com uma campanha via PIX na aba Campanhas.')}`;
+      $('#nova-doacao').addEventListener('click', () => abrirNovaDoacao());
     } catch (e) { root().innerHTML = erroBox(e.message, 'doacoes'); }
   }
   function cardDoacao(d) {
     const c = UI.cat(d.categoria);
     return `<div class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
-      <div class="h-24 flex items-center justify-center text-4xl ${c.cls}">${c.emoji}</div>
+      <div class="h-24 flex items-center justify-center text-4xl ${c.cls} relative">${c.emoji}
+        <div class="absolute top-2 right-2 flex gap-1">
+          <button data-editdoacao="${d.id}" class="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center text-textDark hover:text-primary shadow"><i class="ph ph-pencil-simple"></i></button>
+          <button data-deldoacao="${d.id}" class="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center text-textDark hover:text-red-500 shadow"><i class="ph ph-trash"></i></button>
+        </div>
+      </div>
       <div class="p-5">
         <div class="flex items-center gap-2 mb-2">${UI.catChip(d.categoria)} ${d.urgente ? '<span class="text-xs font-bold text-accent bg-accent-light px-2.5 py-1 rounded-full">Urgente</span>' : ''}</div>
         <h4 class="font-montserrat font-bold text-textDark text-lg">${UI.esc(d.nome)}</h4>
@@ -1256,36 +1286,55 @@ const App = (() => {
         ${d.quantidade ? `<p class="text-xs text-textGrey mt-2 font-semibold"><i class="ph ph-stack"></i> Quantidade: ${d.quantidade}</p>` : ''}
       </div></div>`;
   }
-  function abrirNovaDoacao() {
+  function cardDoacaoFinanceira(d) {
+    return `<div class="bg-white rounded-2xl shadow-card border border-gray-100 p-4 flex items-center gap-4">
+      <div class="w-12 h-12 rounded-xl bg-primary-light flex items-center justify-center text-primary flex-shrink-0"><i class="ph-fill ph-pix-logo text-2xl"></i></div>
+      <div class="flex-1 min-w-0">
+        <p class="font-bold text-textDark truncate">${UI.esc(d.ongNome || 'ONG')}</p>
+        <p class="text-xs text-textGrey truncate">${d.campanhaTitulo ? UI.esc(d.campanhaTitulo) + ' · ' : ''}${UI.dataCurta(d.dataCriacao)}</p>
+      </div>
+      <div class="text-right">
+        <p class="font-montserrat font-black text-primary">${UI.brl(d.valor)}</p>
+        <span class="text-[10px] font-bold ${d.status === 'CONFIRMADO' ? 'text-primary' : 'text-textGrey'}">${UI.esc(d.status || '')}</span>
+      </div></div>`;
+  }
+  function abrirNovaDoacao(doacao) {
+    const editar = !!doacao;
+    const cats = state.categorias || UI.CANONICAS.map((c) => c.valor);
     abrirModal(`<form id="form-doacao" class="p-7 space-y-4">
       <div class="text-center mb-2">
         <div class="w-14 h-14 bg-primary-light rounded-full flex items-center justify-center mx-auto mb-3 text-primary"><i class="ph-fill ph-gift text-3xl"></i></div>
-        <h3 class="text-xl font-montserrat font-bold text-textDark">O que você quer doar?</h3>
+        <h3 class="text-xl font-montserrat font-bold text-textDark">${editar ? 'Editar doação' : 'O que você quer doar?'}</h3>
       </div>
-      <input name="nome" required placeholder="Item (ex: Cobertores)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <input name="nome" required value="${editar ? UI.esc(doacao.nome) : ''}" placeholder="Item (ex: Cobertores)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       <div class="grid grid-cols-2 gap-3">
         <select name="categoria" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
-          ${(state.categorias || ['Alimentos', 'Roupas', 'Higiene', 'Brinquedos', 'Educacao', 'Saude']).map((c) => `<option>${UI.esc(c)}</option>`).join('')}
+          ${cats.map((c) => `<option value="${UI.esc(c)}" ${editar && UI.normalizarCat(doacao.categoria) === UI.normalizarCat(c) ? 'selected' : ''}>${UI.cat(c).emoji} ${UI.esc(UI.cat(c).rotulo)}</option>`).join('')}
         </select>
-        <input name="quantidade" type="number" min="1" placeholder="Quantidade" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+        <input name="quantidade" type="number" min="1" value="${editar ? (doacao.quantidade || 1) : ''}" placeholder="Quantidade" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       </div>
-      <textarea name="descricao" rows="3" required placeholder="Descrição / estado de conservação" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none"></textarea>
-      <label class="flex items-center gap-2 text-sm font-semibold text-textDark"><input type="checkbox" name="urgente" class="w-4 h-4 accent-primary"> Marcar como urgente</label>
-      <button class="btn-submit w-full py-4 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-60">Publicar doação</button>
+      <textarea name="descricao" rows="3" required placeholder="Descrição / estado de conservação" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none">${editar ? UI.esc(doacao.descricao || '') : ''}</textarea>
+      <label class="flex items-center gap-2 text-sm font-semibold text-textDark"><input type="checkbox" name="urgente" ${editar && doacao.urgente ? 'checked' : ''} class="w-4 h-4 accent-primary"> Marcar como urgente</label>
+      <button class="btn-submit w-full py-4 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-60">${editar ? 'Salvar alterações' : 'Publicar doação'}</button>
     </form>`);
     $('#form-doacao').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = e.target.querySelector('.btn-submit'); btn.disabled = true; btn.textContent = 'Publicando…';
+      const btn = e.target.querySelector('.btn-submit'); btn.disabled = true; btn.textContent = 'Salvando…';
       const fd = Object.fromEntries(new FormData(e.target));
+      const dto = { nome: fd.nome, descricao: fd.descricao, categoria: fd.categoria,
+        quantidade: Number(fd.quantidade) || 1, urgente: fd.urgente === 'on', tipo: doacao ? (doacao.tipo || 'Nova') : 'Nova' };
       try {
-        await API.cadastrarDoacao({
-          nome: fd.nome, descricao: fd.descricao, categoria: fd.categoria,
-          quantidade: Number(fd.quantidade) || 1, urgente: fd.urgente === 'on', tipo: 'Nova',
-        });
-        fecharModal(); UI.toast('Doação publicada! 🎁', 'ok');
+        if (editar) await API.atualizarDoacao(doacao.id, dto); else await API.cadastrarDoacao(dto);
+        fecharModal(); UI.toast(editar ? 'Doação atualizada ✓' : 'Doação publicada! 🎁', 'ok');
         if (state.rota === 'doacoes') viewDoacoes();
-      } catch (err) { btn.disabled = false; btn.textContent = 'Publicar doação'; UI.toast(err.message, 'erro'); }
+      } catch (err) { btn.disabled = false; btn.textContent = editar ? 'Salvar alterações' : 'Publicar doação'; UI.toast(err.message, 'erro'); }
     });
+  }
+  function editarDoacao(id) { const d = (state.minhasDoacoes || []).find((x) => x.id === Number(id)); if (d) abrirNovaDoacao(d); }
+  async function excluirDoacao(id) {
+    if (!confirm('Excluir esta doação?')) return;
+    try { await API.excluirDoacao(Number(id)); UI.toast('Doação excluída.', 'info'); viewDoacoes(); }
+    catch (e) { UI.toast(e.message, 'erro'); }
   }
 
   // =========================================================================
@@ -1924,8 +1973,10 @@ const App = (() => {
   // =========================================================================
   function ligarCliques() {
     document.addEventListener('click', (e) => {
-      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir],[data-dora-abrir],[data-dora-menu]');
+      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir],[data-dora-abrir],[data-dora-menu],[data-editdoacao],[data-deldoacao]');
       if (!alvo) return;
+      if (alvo.dataset.editdoacao) return editarDoacao(alvo.dataset.editdoacao);
+      if (alvo.dataset.deldoacao) return excluirDoacao(alvo.dataset.deldoacao);
       if (alvo.dataset.doraMenu) return doraMenuConversa(alvo.dataset.doraMenu);
       if (alvo.dataset.doraAbrir) { const c = DoraStore.obter(alvo.dataset.doraAbrir); if (c) { dora.conv = c; fecharModal(); viewDora(); } return; }
       if (alvo.dataset.fav) { e.stopPropagation(); return toggleFav(alvo.dataset.fav, alvo); }
