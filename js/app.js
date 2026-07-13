@@ -707,45 +707,174 @@ const App = (() => {
     abrirModal(carregando('Carregando perfil…'), 'max-w-2xl');
     try {
       const [p] = await Promise.all([API.perfilOng(ongId), carregarFavIds()]);
+      if (p.bloqueado) { $('#modal-card').innerHTML = `<div class="p-8 text-center">${vazio('ph-prohibit', 'Perfil indisponível', 'Esta ONG não está disponível no momento.')}</div>`; return; }
+      state.perfilOngAtual = p;
       const fav = state.favIds.has(Number(ongId));
       const nv = NIVEL[p.nivelTransparencia] || {};
       const necAbertas = (p.necessidades || []).filter((n) => n.status === 'ABERTA');
+      const capa = UI.fotoSrc(p.capaBase64);
+      const enderecoQ = encodeURIComponent((p.endereco || '') + ' ' + (p.cidade || ''));
       $('#modal-card').innerHTML = `
-        <div class="h-24 bg-gradient-to-r from-primary to-primary-dark rounded-t-3xl"></div>
-        <div class="px-6 pb-6 -mt-10">
-          <div class="flex items-end justify-between">
-            <div class="w-20 h-20 rounded-2xl border-4 border-white shadow">${UI.avatar(p.nome, 'w-full h-full text-2xl rounded-xl')}</div>
-            <div class="flex gap-2 mb-1">
-              <button data-fav="${p.id}" class="px-3 py-2 rounded-xl border text-sm font-bold flex items-center gap-1 ${fav ? 'bg-accent-light text-accent border-accent' : 'border-gray-200 text-textGrey hover:border-accent hover:text-accent'}"><i class="ph${fav ? '-fill' : ''} ph-star"></i> ${fav ? 'Favorita' : 'Favoritar'}</button>
-              <button data-avaliar="${p.id}" data-ong="${UI.esc(p.nome)}" class="px-3 py-2 rounded-xl border border-gray-200 text-textGrey hover:border-primary hover:text-primary text-sm font-bold flex items-center gap-1"><i class="ph ph-star-half"></i> Avaliar</button>
-            </div>
+        <!-- Capa -->
+        <div class="h-32 rounded-t-3xl relative overflow-hidden ${capa ? '' : 'bg-gradient-to-r from-primary to-primary-dark'}"
+          ${capa ? `style="background-image:url('${capa}');background-size:cover;background-position:center"` : ''}>
+          ${capa ? '<div class="absolute inset-0 bg-black/45"></div>' : ''}
+        </div>
+        <div class="px-6 pb-6">
+          <!-- Avatar sobreposto -->
+          <div class="w-20 h-20 rounded-2xl border-4 border-white shadow -mt-10 relative bg-white">${UI.avatar(p.nome, 'w-full h-full text-2xl rounded-xl')}
+            ${p.verificada ? '<span class="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center"><i class="ph-fill ph-seal-check text-primary"></i></span>' : ''}
           </div>
-          <h3 class="text-2xl font-montserrat font-extrabold text-textDark mt-3 flex items-center gap-2">${UI.esc(p.nome)} ${p.verificada ? '<i class="ph-fill ph-seal-check text-primary"></i>' : ''}</h3>
-          <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-textGrey">
+          <h3 class="text-2xl font-montserrat font-extrabold text-textDark mt-3">${UI.esc(p.nome)}</h3>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-textGrey">
             <span><i class="ph ph-map-pin"></i> ${UI.esc(p.cidade || 'Brasil')}</span>
             <span>${UI.estrelas(p.notaMedia)} ${(p.notaMedia || 0).toFixed(1)} (${p.totalAvaliacoes || 0})</span>
             ${p.nivelTransparencia ? `<span class="px-2.5 py-1 rounded-full text-xs font-bold ${nv.cls || 'bg-gray-100'}">${nv.emoji || ''} ${p.nivelTransparencia} · ${p.transparenciaScore || 0} pts</span>` : ''}
+            ${p.diasNoTopo ? `<span class="text-accent font-bold">🔥 ${p.diasNoTopo}d no topo</span>` : ''}
           </div>
+
+          <!-- Ações (linha própria, sem sobrepor a capa) -->
+          <div class="grid grid-cols-4 gap-2 mt-4">
+            <button data-fav="${p.id}" class="py-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1 ${fav ? 'bg-accent-light text-accent border-accent' : 'border-gray-200 text-textGrey hover:border-accent hover:text-accent'}"><i class="ph${fav ? '-fill' : ''} ph-star text-lg"></i> ${fav ? 'Favorita' : 'Favoritar'}</button>
+            <button data-avaliar="${p.id}" data-ong="${UI.esc(p.nome)}" class="py-2.5 rounded-xl border border-gray-200 text-textGrey hover:border-primary hover:text-primary text-xs font-bold flex flex-col items-center gap-1"><i class="ph ph-star-half text-lg"></i> Avaliar</button>
+            <button data-share-ong="${p.id}" class="py-2.5 rounded-xl border border-gray-200 text-textGrey hover:border-primary hover:text-primary text-xs font-bold flex flex-col items-center gap-1"><i class="ph ph-share-network text-lg"></i> Compartilhar</button>
+            <button data-denunciar="${p.id}" data-ong="${UI.esc(p.nome)}" class="py-2.5 rounded-xl border border-gray-200 text-textGrey hover:border-red-400 hover:text-red-500 text-xs font-bold flex flex-col items-center gap-1"><i class="ph ph-flag text-lg"></i> Denunciar</button>
+          </div>
+
+          <!-- Stats -->
           <div class="grid grid-cols-3 gap-3 mt-5 text-center">
-            <div class="bg-background rounded-2xl py-3"><p class="text-2xl font-montserrat font-black text-primary">${p.totalNecessidades || necAbertas.length}</p><p class="text-xs text-textGrey font-semibold">Necessidades</p></div>
-            <div class="bg-background rounded-2xl py-3"><p class="text-2xl font-montserrat font-black text-primary">${p.totalCampanhas || (p.campanhas || []).length}</p><p class="text-xs text-textGrey font-semibold">Campanhas</p></div>
-            <div class="bg-background rounded-2xl py-3"><p class="text-2xl font-montserrat font-black text-primary">${p.totalPrestacoes || (p.prestacoes || []).length}</p><p class="text-xs text-textGrey font-semibold">Prestações</p></div>
+            <div class="bg-background rounded-2xl py-3"><p class="text-2xl font-montserrat font-black text-primary">${p.totalNecessidades ?? necAbertas.length}</p><p class="text-xs text-textGrey font-semibold">Necessidades</p></div>
+            <div class="bg-background rounded-2xl py-3"><p class="text-2xl font-montserrat font-black text-primary">${p.totalCampanhas ?? (p.campanhas || []).length}</p><p class="text-xs text-textGrey font-semibold">Campanhas</p></div>
+            <div class="bg-background rounded-2xl py-3"><p class="text-2xl font-montserrat font-black text-primary">${p.totalPrestacoes ?? (p.prestacoes || []).length}</p><p class="text-xs text-textGrey font-semibold">Prestações</p></div>
           </div>
+
+          <!-- Resumo de impacto (IA) -->
+          <div id="resumo-ia" class="mt-5"></div>
+
           ${p.descricao ? `<div class="mt-5"><h4 class="font-montserrat font-bold text-textDark mb-1">Sobre</h4><p class="text-sm text-textGrey leading-relaxed whitespace-pre-line">${UI.esc(p.descricao)}</p></div>` : ''}
-          ${(p.telefone || p.email || p.endereco) ? `<div class="mt-4 flex flex-wrap gap-3 text-sm">
-            ${p.telefone ? `<span class="text-textGrey"><i class="ph ph-phone text-primary"></i> ${UI.esc(p.telefone)}</span>` : ''}
-            ${p.email ? `<span class="text-textGrey"><i class="ph ph-envelope text-primary"></i> ${UI.esc(p.email)}</span>` : ''}
-            ${p.endereco ? `<a target="_blank" href="https://www.google.com/maps/search/${encodeURIComponent(p.endereco + ' ' + (p.cidade || ''))}" class="text-primary font-semibold"><i class="ph ph-map-pin-line"></i> Ver no Maps</a>` : ''}
+
+          <!-- Contato + localização -->
+          ${(p.telefone || p.email || p.endereco) ? `<div class="mt-5">
+            <h4 class="font-montserrat font-bold text-textDark mb-2">Contato</h4>
+            <div class="space-y-1 text-sm text-textGrey">
+              ${p.telefone ? `<p><i class="ph ph-phone text-primary"></i> ${UI.esc(p.telefone)}</p>` : ''}
+              ${p.email ? `<p><i class="ph ph-envelope text-primary"></i> ${UI.esc(p.email)}</p>` : ''}
+              ${p.cnpj ? `<p><i class="ph ph-identification-card text-primary"></i> CNPJ ${UI.esc(p.cnpj)}</p>` : ''}
+              ${p.endereco ? `<p><i class="ph ph-map-pin-line text-primary"></i> ${UI.esc(p.endereco)}</p>` : ''}
+            </div>
+            <div class="grid grid-cols-3 gap-2 mt-3">
+              <a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${enderecoQ}" class="py-2.5 rounded-xl bg-background hover:bg-primary-light text-center text-xs font-bold text-textDark flex flex-col items-center gap-1"><i class="ph ph-map-pin text-lg text-primary"></i> Abrir no Maps</a>
+              <a target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${enderecoQ}" class="py-2.5 rounded-xl bg-background hover:bg-primary-light text-center text-xs font-bold text-textDark flex flex-col items-center gap-1"><i class="ph ph-navigation-arrow text-lg text-primary"></i> Como chegar</a>
+              <button data-frete-ong="${p.id}" class="py-2.5 rounded-xl bg-background hover:bg-primary-light text-center text-xs font-bold text-textDark flex flex-col items-center gap-1"><i class="ph ph-truck text-lg text-primary"></i> Simular frete</button>
+            </div>
           </div>` : ''}
+
+          <!-- Fotos do local -->
+          ${(p.fotosLocal || []).length ? `<div class="mt-5"><h4 class="font-montserrat font-bold text-textDark mb-2">Fotos do local</h4>
+            <div class="flex gap-3 overflow-x-auto no-scrollbar pb-1">${p.fotosLocal.map((f) => `<img src="${UI.fotoSrc(f)}" data-ver-img="${UI.fotoSrc(f)}" class="w-40 h-28 rounded-xl object-cover cursor-pointer flex-shrink-0">`).join('')}</div></div>` : ''}
+
+          <!-- Precisa de -->
           ${necAbertas.length ? `<div class="mt-6"><h4 class="font-montserrat font-bold text-textDark mb-2">Precisa de</h4>
-            <div class="space-y-2">${necAbertas.slice(0, 5).map((n) => `<button data-necessidade="${n.id}" class="w-full text-left flex items-center gap-3 p-3 bg-background rounded-xl hover:bg-primary-light transition-colors">
+            <div class="space-y-2">${necAbertas.slice(0, 6).map((n) => `<button data-necessidade="${n.id}" class="w-full text-left flex items-center gap-3 p-3 bg-background rounded-xl hover:bg-primary-light transition-colors">
               <span class="text-2xl">${UI.cat(n.categoria).emoji}</span>
               <span class="flex-1 min-w-0"><span class="block font-bold text-sm text-textDark truncate">${UI.esc(n.titulo)}</span><span class="block text-xs text-textGrey truncate">${UI.esc(n.descricao || '')}</span></span>
               ${n.urgente ? '<span class="text-xs font-bold text-accent">Urgente</span>' : ''}</button>`).join('')}</div></div>` : ''}
+
+          <!-- Campanhas -->
+          ${(p.campanhas || []).length ? `<div class="mt-6"><h4 class="font-montserrat font-bold text-textDark mb-2">Campanhas</h4>
+            <div class="space-y-2">${p.campanhas.slice(0, 4).map((c) => { const pct = Math.min(100, Number(c.progresso) || 0); return `<div class="p-3 bg-background rounded-xl">
+              <div class="flex items-center justify-between"><span class="font-bold text-sm text-textDark">${UI.esc(c.titulo)}</span><span class="text-xs font-bold text-primary">${pct}%</span></div>
+              <div class="w-full bg-gray-200 rounded-full h-2 mt-2"><div class="bg-primary h-2 rounded-full" style="width:${pct}%"></div></div></div>`; }).join('')}</div></div>` : ''}
+
+          <!-- Avaliações -->
           ${(p.avaliacoes || []).length ? `<div class="mt-6"><h4 class="font-montserrat font-bold text-textDark mb-2">Avaliações</h4>
-            <div class="space-y-2">${p.avaliacoes.slice(0, 4).map((a) => `<div class="p-3 bg-background rounded-xl"><div class="flex items-center justify-between"><span class="font-bold text-sm text-textDark">${UI.esc(a.doadorNome || 'Doador')}</span>${UI.estrelas(a.nota)}</div>${a.comentario ? `<p class="text-sm text-textGrey mt-1">${UI.esc(a.comentario)}</p>` : ''}</div>`).join('')}</div></div>` : ''}
+            <div class="space-y-2">${p.avaliacoes.slice(0, 5).map((a) => `<div class="p-3 bg-background rounded-xl"><div class="flex items-center justify-between"><span class="font-bold text-sm text-textDark">${UI.esc(a.doadorNome || 'Doador')}</span>${UI.estrelas(a.nota)}</div>${a.comentario ? `<p class="text-sm text-textGrey mt-1">${UI.esc(a.comentario)}</p>` : ''}</div>`).join('')}</div>
+            <p class="text-xs text-textGrey mt-2"><i class="ph ph-info"></i> Só quem concluiu uma doação pode avaliar.</p></div>` : ''}
         </div>`;
+
+      // Resumo de impacto (IA) — carrega em segundo plano.
+      API.resumoImpacto(ongId).then((r) => {
+        const box = $('#resumo-ia');
+        if (box && r && r.resumo) box.innerHTML = `<div class="bg-primary-light/60 rounded-2xl p-4 border border-primary/20">
+          <div class="flex items-center gap-2 mb-1"><i class="ph-fill ph-sparkle text-accent"></i><span class="font-bold text-sm text-primary-dark">Resumo de impacto · IA</span></div>
+          <p class="text-sm text-textDark leading-relaxed">${UI.esc(r.resumo)}</p></div>`;
+      }).catch(() => {});
     } catch (e) { $('#modal-card').innerHTML = `<div class="p-6">${erroBox(e.message)}</div>`; }
+  }
+
+  // Simular frete (origem = cidade do doador; destino = cidade da ONG)
+  function abrirFrete(ongId) {
+    const p = state.perfilOngAtual;
+    if (!p) return;
+    const u = API.usuario() || {};
+    const primeira = (p.necessidades || []).find((n) => n.status === 'ABERTA');
+    abrirModal(`<form id="f-frete" class="p-7 space-y-3">
+      <h3 class="text-xl font-montserrat font-bold text-textDark text-center mb-1">Simular frete</h3>
+      <p class="text-xs text-textGrey text-center mb-3">Estimativa para enviar sua doação até ${UI.esc(p.nome)}.</p>
+      <div class="grid grid-cols-2 gap-3">
+        <input name="origem" value="${UI.esc(u.cidade || '')}" placeholder="Sua cidade" class="p-3 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+        <input value="${UI.esc(p.cidade || '')}" disabled class="p-3 bg-gray-100 rounded-xl text-textGrey">
+      </div>
+      <input name="item" value="${UI.esc(primeira ? primeira.titulo : '')}" placeholder="O que vai doar" class="w-full p-3 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <div class="grid grid-cols-2 gap-3">
+        <select name="categoria" class="p-3 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+          ${UI.CANONICAS.map((c) => `<option value="${c.valor}" ${primeira && UI.normalizarCat(primeira.categoria) === c.valor ? 'selected' : ''}>${c.emoji} ${c.rotulo}</option>`).join('')}
+        </select>
+        <input name="quantidade" type="number" min="1" value="1" placeholder="Qtd" class="p-3 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      </div>
+      <button class="btn-submit w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-2xl disabled:opacity-60">Calcular estimativa</button>
+      <div id="frete-resultado"></div>
+    </form>`, 'max-w-md');
+    $('#f-frete').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target, b = f.querySelector('.btn-submit');
+      b.disabled = true; b.textContent = 'Calculando…';
+      try {
+        const r = await API.estimarFrete({
+          origemCidade: f.origem.value, origemUf: u.estado || null, destinoCidade: p.cidade,
+          item: f.item.value, categoria: f.categoria.value, quantidade: Number(f.quantidade.value) || 1,
+        });
+        $('#frete-resultado').innerHTML = `
+          <div class="mt-3 space-y-2">
+            <div class="flex items-center justify-between text-sm text-textGrey"><span>${UI.esc(r.origem)} → ${UI.esc(r.destino)}</span><span>${r.distanciaKm ? r.distanciaKm + ' km' : 'mesma cidade'} · ${r.pesoKg}kg${r.pesoEstimado ? ' (est.)' : ''}</span></div>
+            ${r.categoriaDetectada && UI.normalizarCat(r.categoriaDetectada) !== UI.normalizarCat(r.categoria) ? `<p class="text-xs text-accent bg-accent-light rounded-lg p-2">A IA detectou que parece "${UI.esc(r.categoriaDetectada)}".</p>` : ''}
+            ${(r.modalidades || []).map((m) => `<div class="flex items-center justify-between p-3 bg-background rounded-xl">
+              <div><p class="font-bold text-sm text-textDark">${UI.esc(m.nome)}</p><p class="text-xs text-textGrey">${UI.esc(m.detalhe || '')}${m.prazoDias ? ' · ' + m.prazoDias + ' dia(s)' : ''}</p></div>
+              <span class="font-montserrat font-black ${(m.valor <= 0) ? 'text-primary' : 'text-textDark'}">${m.valor <= 0 ? 'Grátis' : UI.brl(m.valor)}</span></div>`).join('')}
+            <p class="text-[11px] text-textGrey">${UI.esc(r.aviso || '')} ${r.modo === 'ia' ? '· estimado por IA' : ''}</p>
+          </div>`;
+        b.disabled = false; b.textContent = 'Recalcular';
+      } catch (err) { b.disabled = false; b.textContent = 'Calcular estimativa'; UI.toast(err.message, 'erro'); }
+    });
+  }
+
+  function abrirDenuncia(ongId, ongNome) {
+    const MOTIVOS = [['CONTEUDO_INADEQUADO', 'Conteúdo inadequado'], ['FRAUDE', 'Fraude'], ['SPAM', 'Spam'], ['ABUSO', 'Abuso'], ['OUTRO', 'Outro']];
+    abrirModal(`<form id="f-denuncia" class="p-7 space-y-3">
+      <h3 class="text-xl font-montserrat font-bold text-textDark text-center mb-1">Denunciar ${UI.esc(ongNome)}</h3>
+      <select name="motivo" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+        ${MOTIVOS.map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}
+      </select>
+      <textarea name="descricao" rows="3" placeholder="Descreva o que aconteceu (opcional)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none"></textarea>
+      <button class="btn-submit w-full py-3.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-2xl disabled:opacity-60">Enviar denúncia</button>
+    </form>`, 'max-w-sm');
+    $('#f-denuncia').addEventListener('submit', async (e) => {
+      e.preventDefault(); const f = e.target, b = f.querySelector('.btn-submit'); b.disabled = true; b.textContent = 'Enviando…';
+      try {
+        await API.denunciar({ tipoAlvo: 'ONG', alvoId: Number(ongId), motivo: f.motivo.value, descricao: f.descricao.value });
+        fecharModal(); UI.toast('Denúncia enviada. Obrigado por avisar.', 'ok');
+      } catch (err) { b.disabled = false; b.textContent = 'Enviar denúncia'; UI.toast(err.message, 'erro'); }
+    });
+  }
+
+  function verImagem(src) {
+    abrirModal(`<div class="bg-black flex items-center justify-center"><img src="${src}" class="max-h-[85vh] w-auto object-contain"></div>`, 'max-w-3xl');
+  }
+
+  function compartilharOng(ongId) {
+    const link = location.origin + location.pathname + '#/ong/' + ongId;
+    if (navigator.clipboard) navigator.clipboard.writeText(link);
+    UI.toast('Link da ONG copiado!', 'info');
   }
 
   async function carregarFavIds(force) {
@@ -1413,7 +1542,10 @@ const App = (() => {
     atualizarSino();
     if (sinoPoll) clearInterval(sinoPoll);
     sinoPoll = setInterval(atualizarSino, 30000);
-    irPara(location.hash.replace('#/', '') || 'inicio');
+    // Deep-link de ONG compartilhada (#/ong/{id}) abre a rota ONGs + o perfil.
+    const mo = (location.hash || '').match(/^#\/ong\/(\d+)/);
+    if (mo) { irPara('ongs'); abrirPerfilOng(Number(mo[1])); }
+    else irPara(location.hash.replace('#/', '') || 'inicio');
     // Enriquamos a sessão com o perfil real (foto, cidade, estado) para avatares e frete.
     try {
       const p = await API.meuPerfil();
@@ -1585,10 +1717,14 @@ const App = (() => {
   // =========================================================================
   function ligarCliques() {
     document.addEventListener('click', (e) => {
-      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif]');
+      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img]');
       if (!alvo) return;
       if (alvo.dataset.fav) { e.stopPropagation(); return toggleFav(alvo.dataset.fav, alvo); }
       if (alvo.dataset.avaliar) return abrirAvaliar(alvo.dataset.avaliar, alvo.dataset.ong || 'ONG');
+      if (alvo.dataset.freteOng) return abrirFrete(Number(alvo.dataset.freteOng));
+      if (alvo.dataset.denunciar) return abrirDenuncia(alvo.dataset.denunciar, alvo.dataset.ong || 'ONG');
+      if (alvo.dataset.shareOng) return compartilharOng(alvo.dataset.shareOng);
+      if (alvo.dataset.verImg) return verImagem(alvo.dataset.verImg);
       if (alvo.dataset.notif) return tocarNotif(alvo.dataset.notif);
       if (alvo.dataset.perfilOng) return abrirPerfilOng(Number(alvo.dataset.perfilOng));
       if (alvo.dataset.rota) return irPara(alvo.dataset.rota);
