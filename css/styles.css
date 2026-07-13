@@ -39,6 +39,42 @@
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* =========================================================================
+   TEMA ESCURO — remapeia as utilidades do Tailwind usadas no app.
+   Ativado por body.tema-escuro (espelha Preferencia.tema = ESCURO/AUTOMATICO).
+   ========================================================================= */
+body.tema-escuro { background: #0f1720; color: #e5e7eb; }
+body.tema-escuro .bg-background { background-color: #0f1720 !important; }
+body.tema-escuro .bg-white { background-color: #1b2430 !important; }
+body.tema-escuro .bg-surface { background-color: #1b2430 !important; }
+body.tema-escuro .bg-background\/90 { background-color: rgba(15,23,32,.9) !important; }
+body.tema-escuro .bg-background\/95 { background-color: rgba(15,23,32,.95) !important; }
+body.tema-escuro .text-textDark { color: #e5e7eb !important; }
+body.tema-escuro .text-textGrey { color: #9aa5b1 !important; }
+body.tema-escuro .border-gray-100,
+body.tema-escuro .border-gray-200,
+body.tema-escuro .border-gray-300 { border-color: #2b3644 !important; }
+body.tema-escuro .bg-gray-50 { background-color: #222c39 !important; }
+body.tema-escuro .bg-gray-100 { background-color: #2b3644 !important; }
+body.tema-escuro .bg-gray-200 { background-color: #374151 !important; }
+body.tema-escuro .bg-primary-light,
+body.tema-escuro .bg-primary-light\/50,
+body.tema-escuro .bg-primary-light\/60 { background-color: rgba(0,133,66,.20) !important; }
+body.tema-escuro .hover\:bg-gray-50:hover { background-color: #222c39 !important; }
+body.tema-escuro .hover\:bg-gray-100:hover { background-color: #2b3644 !important; }
+body.tema-escuro .shadow-card,
+body.tema-escuro .shadow-premium,
+body.tema-escuro .shadow-md,
+body.tema-escuro .shadow-lg { box-shadow: 0 6px 24px -8px rgba(0,0,0,.5) !important; }
+body.tema-escuro input,
+body.tema-escuro select,
+body.tema-escuro textarea { color: #e5e7eb; }
+body.tema-escuro ::-webkit-scrollbar-thumb { background: #374151; }
+
+/* Fonte para dislexia (Lexend, carregada no index) */
+body.fonte-dislexia,
+body.fonte-dislexia .font-sans { font-family: 'Lexend', 'Inter', sans-serif !important; letter-spacing: .01em; }
+
 /* --- Acessibilidade (Ajustes) --- */
 /* Alto contraste: reforça bordas e escurece textos secundários */
 body.alto-contraste .text-textGrey { color: #1f2937 !important; }

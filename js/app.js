@@ -8,6 +8,31 @@ const App = (() => {
   const $ = (sel, ctx = document) => ctx.querySelector(sel);
   const root = () => $('#page-root');
 
+  // Lê um arquivo de imagem, redimensiona (canvas) e devolve base64 CRU (sem
+  // prefixo data:), igual ao mobile (base64 de bytes reduzidos). max=lado maior.
+  function arquivoParaBase64(file, max = 800, q = 0.8) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width: w, height: h } = img;
+          if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+          else if (h > max) { w = Math.round(w * max / h); h = max; }
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          const dataUrl = c.toDataURL('image/jpeg', q);
+          resolve(dataUrl.split(',')[1]); // remove "data:image/jpeg;base64,"
+        };
+        img.onerror = reject;
+        img.src = fr.result;
+      };
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+  }
+
   // Estado leve em memória (cache do que já foi buscado nesta sessão).
   const state = { rota: 'inicio', necessidades: null, categorias: null, campanhas: null };
 
@@ -42,6 +67,7 @@ const App = (() => {
     matches: 'Meus Matches', campanhas: 'Campanhas', dora: 'Dora — Assistente de Doação',
     ongs: 'ONGs', favoritos: 'Favoritos', impacto: 'Seu Impacto',
     ranking: 'Ranking de Transparência', doacoes: 'Minhas Doações', config: 'Ajustes',
+    sobre: 'Sobre o Connect ONG',
   };
 
   function botaoNav(r) {
@@ -927,45 +953,369 @@ const App = (() => {
   }
 
   // =========================================================================
-  // AJUSTES (acessibilidade — client-side, persiste no localStorage)
+  // AJUSTES / PREFERÊNCIAS — paridade com o mobile (configuracoes_screen)
+  // Fonte de verdade = backend (/usuarios/{id}/preferencias); cache local p/
+  // aplicar tema/fonte antes do login e offline.
   // =========================================================================
-  const PREFS_KEY = 'co_prefs';
-  function lerPrefs() { try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'); } catch { return {}; } }
-  function salvarPrefs(p) { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); aplicarPrefs(p); }
-  function aplicarPrefs(p) {
-    const r = document.documentElement;
-    r.style.fontSize = ({ pequeno: '14px', normal: '16px', grande: '18px' }[p.fonte] || '16px');
-    document.body.classList.toggle('alto-contraste', !!p.contraste);
-    document.body.classList.toggle('reduz-motion', !!p.semAnim);
+  const PREF_CACHE = 'co_prefs_v2';
+  const PREFS_PADRAO = {
+    tema: 'CLARO', tamanhoFonte: 'MEDIA', altoContraste: false, fonteDislexia: false,
+    navegacaoSimplificada: false, notifMensagens: true, notifMatch: true, notifCampanhas: true,
+    notifNecessidades: true, notifNoticias: true, mostrarTelefone: true, mostrarEmail: false,
+    perfilPublico: true, receberContatos: true, receberSugestoes: true, doisFatores: 0,
+  };
+  function lerPrefsCache() { try { return { ...PREFS_PADRAO, ...JSON.parse(localStorage.getItem(PREF_CACHE) || '{}') }; } catch { return { ...PREFS_PADRAO }; } }
+  function aplicarPreferencias(p) {
+    p = p || lerPrefsCache();
+    const escuro = p.tema === 'ESCURO' ||
+      (p.tema === 'AUTOMATICO' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.body.classList.toggle('tema-escuro', escuro);
+    document.documentElement.style.fontSize = ({ PEQUENA: '14.4px', MEDIA: '16px', GRANDE: '19.2px' }[p.tamanhoFonte] || '16px');
+    document.body.classList.toggle('alto-contraste', !!p.altoContraste);
+    document.body.classList.toggle('fonte-dislexia', !!p.fonteDislexia);
+    document.body.classList.toggle('reduz-motion', !!p.navegacaoSimplificada);
+    localStorage.setItem(PREF_CACHE, JSON.stringify(p));
   }
+
+  let cfgDraft = null;
   function viewConfig() {
-    const p = lerPrefs();
+    const base = state.prefs || lerPrefsCache();
+    if (!cfgDraft) cfgDraft = { ...base };
+    const p = cfgDraft;
+    const mudou = JSON.stringify({ ...base }) !== JSON.stringify(p);
+    const u = API.usuario() || {};
     root().innerHTML = `
-      <div class="max-w-xl mx-auto space-y-5 slide-up">
-        <div class="bg-white rounded-2xl shadow-card border border-gray-100 p-6">
-          <h4 class="font-montserrat font-bold text-textDark mb-4 flex items-center gap-2"><i class="ph-fill ph-text-aa text-primary"></i> Tamanho da fonte</h4>
-          <div class="flex gap-2">
-            ${['pequeno', 'normal', 'grande'].map((f) => `<button data-pref-fonte="${f}" class="flex-1 py-3 rounded-xl border font-bold capitalize ${(p.fonte || 'normal') === f ? 'bg-primary text-white border-primary' : 'border-gray-200 text-textGrey'}">${f}</button>`).join('')}
+      <div class="max-w-2xl mx-auto space-y-5 slide-up pb-4">
+        <!-- Perfil resumo -->
+        <div class="bg-white rounded-2xl shadow-card border border-gray-100 p-5 flex items-center gap-4">
+          ${UI.avatar(u.nome, 'w-14 h-14 text-lg', u.fotoBase64)}
+          <div class="flex-1 min-w-0"><p class="font-montserrat font-bold text-textDark truncate">${UI.esc(u.nome || '')}</p><p class="text-sm text-textGrey truncate">${UI.esc(u.email || '')}</p></div>
+          <button id="cfg-editar" class="px-4 py-2 rounded-xl border border-gray-200 text-textGrey hover:border-primary hover:text-primary font-bold text-sm">Editar</button>
+        </div>
+
+        ${secaoCfg('ph-paint-brush', 'Aparência', `
+          ${segCfg('tema', 'Tema', [['CLARO', 'Claro'], ['ESCURO', 'Escuro'], ['AUTOMATICO', 'Auto']], p.tema)}
+          ${segCfg('tamanhoFonte', 'Tamanho da fonte', [['PEQUENA', 'Pequena'], ['MEDIA', 'Média'], ['GRANDE', 'Grande']], p.tamanhoFonte)}
+        `)}
+
+        ${secaoCfg('ph-hand-heart', 'Acessibilidade', `
+          ${swCfg('altoContraste', 'Alto contraste', 'Realça bordas e textos', p.altoContraste)}
+          ${swCfg('fonteDislexia', 'Fonte para dislexia', 'Usa a fonte Lexend, mais legível', p.fonteDislexia)}
+          ${swCfg('navegacaoSimplificada', 'Navegação simplificada', 'Menos animações e movimento', p.navegacaoSimplificada)}
+        `)}
+
+        ${secaoCfg('ph-bell', 'Notificações', `
+          ${swCfg('notifMensagens', 'Mensagens', 'Novas mensagens no chat', p.notifMensagens)}
+          ${swCfg('notifMatch', 'Matches', 'Quando a ONG aceita seu interesse', p.notifMatch)}
+          ${swCfg('notifCampanhas', 'Campanhas', 'Novidades de campanhas', p.notifCampanhas)}
+          ${swCfg('notifNecessidades', 'Necessidades', 'Novas necessidades perto de você', p.notifNecessidades)}
+          ${swCfg('notifNoticias', 'Novidades', 'Novidades do Connect ONG', p.notifNoticias)}
+        `)}
+
+        ${secaoCfg('ph-lock-simple', 'Privacidade', `
+          ${swCfg('mostrarTelefone', 'Mostrar telefone', 'No seu perfil público', p.mostrarTelefone)}
+          ${swCfg('mostrarEmail', 'Mostrar e-mail', 'No seu perfil público', p.mostrarEmail)}
+          ${swCfg('perfilPublico', 'Perfil público', 'Permite que ONGs vejam seu perfil', p.perfilPublico)}
+          ${swCfg('receberContatos', 'Receber contatos', 'ONGs podem falar com você', p.receberContatos)}
+          ${swCfg('receberSugestoes', 'Sugestões da Dora', 'Recomendações personalizadas', p.receberSugestoes)}
+        `)}
+
+        ${secaoCfg('ph-shield-check', 'Segurança', `
+          ${swCfg('doisFatores', 'Verificação em 2 fatores', 'Código extra ao entrar', !!p.doisFatores)}
+          <button id="cfg-senha" class="w-full text-left flex items-center justify-between py-1"><span class="flex items-center gap-3"><i class="ph ph-key text-xl text-primary"></i><span class="font-bold text-textDark">Alterar senha</span></span><i class="ph ph-caret-right text-textGrey"></i></button>
+          <button id="cfg-email" class="w-full text-left flex items-center justify-between py-1"><span class="flex items-center gap-3"><i class="ph ph-envelope text-xl text-primary"></i><span class="font-bold text-textDark">Alterar e-mail</span></span><i class="ph ph-caret-right text-textGrey"></i></button>
+        `)}
+
+        ${secaoCfg('ph-user-circle', 'Conta', `
+          ${linkCfg('cfg-perfil-publico', 'ph-identification-card', 'Meu perfil público')}
+          ${linkCfg('cfg-doacoes', 'ph-hand-heart', 'Minhas doações')}
+          ${linkCfg('cfg-favoritos', 'ph-star', 'Favoritos')}
+          ${linkCfg('cfg-conquistas', 'ph-medal', 'Conquistas')}
+        `)}
+
+        ${secaoCfg('ph-info', 'Sobre', `
+          ${linkCfg('cfg-sobre', 'ph-heart', 'Sobre o Connect ONG')}
+          ${linkCfg('cfg-integrantes', 'ph-users-three', 'Integrantes do projeto')}
+        `)}
+
+        <div class="bg-white rounded-2xl shadow-card border border-gray-100 p-4 space-y-2">
+          <button id="cfg-sair" class="w-full py-3 text-red-600 font-bold rounded-xl hover:bg-red-50 flex items-center justify-center gap-2"><i class="ph ph-sign-out"></i> Sair da conta</button>
+          <button id="cfg-excluir" class="w-full py-3 text-red-500 font-semibold text-sm rounded-xl hover:bg-red-50 flex items-center justify-center gap-2"><i class="ph ph-trash"></i> Excluir minha conta</button>
+        </div>
+        <p class="text-center text-xs text-textGrey">Connect ONG • Web do Doador • conectada a ${UI.esc(API.BASE)}</p>
+      </div>
+
+      <!-- Barra Salvar -->
+      <div id="cfg-bar" class="${mudou ? '' : 'hidden'} fixed bottom-0 md:bottom-0 inset-x-0 md:left-64 z-40 bg-white border-t border-gray-100 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.1)] px-6 py-3 flex items-center justify-between">
+        <span class="text-sm font-semibold text-textGrey">Você tem alterações não salvas</span>
+        <div class="flex gap-2">
+          <button id="cfg-descartar" class="px-4 py-2.5 rounded-xl font-bold text-textGrey hover:bg-gray-100">Descartar</button>
+          <button id="cfg-salvar" class="px-6 py-2.5 rounded-xl font-bold text-white bg-primary hover:bg-primary-dark disabled:opacity-60">Salvar</button>
+        </div>
+      </div>`;
+
+    // Segmentos (tema/fonte)
+    root().querySelectorAll('[data-seg]').forEach((b) => b.addEventListener('click', () => {
+      cfgDraft[b.dataset.seg] = b.dataset.val; aplicarPreferencias(cfgDraft); viewConfig();
+    }));
+    // Toggles
+    root().querySelectorAll('[data-sw]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.dataset.sw;
+      if (k === 'doisFatores') cfgDraft[k] = cfgDraft[k] ? 0 : 1;
+      else cfgDraft[k] = !cfgDraft[k];
+      aplicarPreferencias(cfgDraft); viewConfig();
+    }));
+    // Barra salvar
+    const bs = $('#cfg-salvar');
+    if (bs) bs.addEventListener('click', async () => {
+      bs.disabled = true; bs.textContent = 'Salvando…';
+      try {
+        const salvo = await API.salvarPreferencias(cfgDraft);
+        state.prefs = salvo && salvo.tema ? salvo : { ...cfgDraft };
+        cfgDraft = null; aplicarPreferencias(state.prefs);
+        UI.toast('Preferências salvas ✓', 'ok'); viewConfig();
+      } catch (e) { bs.disabled = false; bs.textContent = 'Salvar'; UI.toast(e.message, 'erro'); }
+    });
+    const bd = $('#cfg-descartar');
+    if (bd) bd.addEventListener('click', () => { cfgDraft = { ...base }; aplicarPreferencias(base); viewConfig(); });
+
+    // Ações
+    $('#cfg-editar').addEventListener('click', abrirEditarPerfil);
+    $('#cfg-senha').addEventListener('click', abrirAlterarSenha);
+    $('#cfg-email').addEventListener('click', abrirAlterarEmail);
+    $('#cfg-perfil-publico').addEventListener('click', () => abrirPerfilDoador());
+    $('#cfg-doacoes').addEventListener('click', () => irPara('doacoes'));
+    $('#cfg-favoritos').addEventListener('click', () => irPara('favoritos'));
+    $('#cfg-conquistas').addEventListener('click', () => irPara('impacto'));
+    $('#cfg-sobre').addEventListener('click', () => irPara('sobre'));
+    $('#cfg-integrantes').addEventListener('click', () => abrirIntegrantes());
+    $('#cfg-sair').addEventListener('click', () => { if (confirm('Deseja sair da sua conta?')) { API.sair(); location.hash = ''; mostrarLogin(); } });
+    $('#cfg-excluir').addEventListener('click', excluirConta);
+  }
+  function secaoCfg(icon, titulo, conteudo) {
+    return `<div class="bg-white rounded-2xl shadow-card border border-gray-100 p-6">
+      <h4 class="font-montserrat font-bold text-textDark mb-4 flex items-center gap-2"><i class="ph-fill ${icon} text-primary"></i> ${titulo}</h4>
+      <div class="space-y-4">${conteudo}</div></div>`;
+  }
+  function segCfg(chave, titulo, opcoes, valor) {
+    return `<div><p class="text-sm font-semibold text-textDark mb-2">${titulo}</p>
+      <div class="flex gap-2">${opcoes.map(([v, r]) => `<button data-seg="${chave}" data-val="${v}" class="flex-1 py-2.5 rounded-xl border font-bold text-sm ${valor === v ? 'bg-primary text-white border-primary' : 'border-gray-200 text-textGrey hover:border-primary'}">${r}</button>`).join('')}</div></div>`;
+  }
+  function swCfg(chave, titulo, sub, ativo) {
+    return `<div class="flex items-center justify-between gap-3">
+      <div><p class="font-bold text-textDark">${titulo}</p><p class="text-xs text-textGrey">${sub}</p></div>
+      <button data-sw="${chave}" class="w-12 h-7 rounded-full flex-shrink-0 transition-colors ${ativo ? 'bg-primary' : 'bg-gray-300'} relative"><span class="absolute top-1 ${ativo ? 'right-1' : 'left-1'} w-5 h-5 bg-white rounded-full transition-all"></span></button>
+    </div>`;
+  }
+  function linkCfg(id, icon, titulo) {
+    return `<button id="${id}" class="w-full text-left flex items-center justify-between py-1"><span class="flex items-center gap-3"><i class="ph ${icon} text-xl text-primary"></i><span class="font-bold text-textDark">${titulo}</span></span><i class="ph ph-caret-right text-textGrey"></i></button>`;
+  }
+
+  // Modais de segurança / perfil
+  function abrirAlterarSenha() {
+    abrirModal(`<form id="f-senha" class="p-7 space-y-4">
+      <h3 class="text-xl font-montserrat font-bold text-textDark text-center">Alterar senha</h3>
+      <input name="atual" type="password" required placeholder="Senha atual" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <input name="nova" type="password" required minlength="4" placeholder="Nova senha" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <p data-erro class="text-sm font-semibold text-red-600 hidden"></p>
+      <button class="btn-submit w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-2xl disabled:opacity-60">Salvar nova senha</button>
+    </form>`, 'max-w-sm');
+    $('#f-senha').addEventListener('submit', async (e) => {
+      e.preventDefault(); const f = e.target, b = f.querySelector('.btn-submit'), er = f.querySelector('[data-erro]');
+      er.classList.add('hidden'); b.disabled = true;
+      try { await API.alterarSenha(f.atual.value, f.nova.value); fecharModal(); UI.toast('Senha alterada ✓', 'ok'); }
+      catch (x) { er.textContent = x.message; er.classList.remove('hidden'); b.disabled = false; }
+    });
+  }
+  function abrirAlterarEmail() {
+    abrirModal(`<form id="f-email" class="p-7 space-y-4">
+      <h3 class="text-xl font-montserrat font-bold text-textDark text-center">Alterar e-mail</h3>
+      <input name="email" type="email" required placeholder="Novo e-mail" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <input name="senha" type="password" required placeholder="Sua senha" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <p data-erro class="text-sm font-semibold text-red-600 hidden"></p>
+      <button class="btn-submit w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-2xl disabled:opacity-60">Salvar novo e-mail</button>
+    </form>`, 'max-w-sm');
+    $('#f-email').addEventListener('submit', async (e) => {
+      e.preventDefault(); const f = e.target, b = f.querySelector('.btn-submit'), er = f.querySelector('[data-erro]');
+      er.classList.add('hidden'); b.disabled = true;
+      try { await API.alterarEmail(f.email.value, f.senha.value); API.mesclarUsuario({ email: f.email.value }); fecharModal(); UI.toast('E-mail alterado ✓', 'ok'); }
+      catch (x) { er.textContent = x.message; er.classList.remove('hidden'); b.disabled = false; }
+    });
+  }
+  async function excluirConta() {
+    if (!confirm('Tem certeza? Sua conta será desativada e você sairá.')) return;
+    try { await API.excluirConta(); API.sair(); location.hash = ''; mostrarLogin(); UI.toast('Conta excluída.', 'info'); }
+    catch (e) { UI.toast(e.message, 'erro'); }
+  }
+  async function abrirEditarPerfil() {
+    const u = API.usuario() || {};
+    abrirModal(`<form id="f-perfil" class="p-7 space-y-4">
+      <h3 class="text-xl font-montserrat font-bold text-textDark text-center mb-1">Editar perfil</h3>
+      <div class="flex justify-center">
+        <label class="relative cursor-pointer">
+          <span id="ep-avatar">${UI.avatar(u.nome, 'w-24 h-24 text-2xl', u.fotoBase64)}</span>
+          <span class="absolute bottom-0 right-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center"><i class="ph ph-camera"></i></span>
+          <input id="ep-foto" type="file" accept="image/*" class="hidden">
+        </label>
+      </div>
+      <input name="nome" required maxlength="80" value="${UI.esc(u.nome || '')}" placeholder="Nome" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <input name="telefone" value="${UI.esc(u.telefone || '')}" placeholder="Telefone" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <div class="grid grid-cols-3 gap-2">
+        <select id="ep-uf" class="col-span-1 p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"><option value="">UF</option></select>
+        <input id="ep-cidade" list="ep-cidades" value="${UI.esc(u.cidade || '')}" placeholder="Cidade" class="col-span-2 p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"><datalist id="ep-cidades"></datalist>
+      </div>
+      <textarea name="bio" rows="2" maxlength="200" placeholder="Bio (opcional)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none">${UI.esc(u.bio || '')}</textarea>
+      <p data-erro class="text-sm font-semibold text-red-600 hidden"></p>
+      <button class="btn-submit w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-2xl disabled:opacity-60">Salvar</button>
+    </form>`, 'max-w-md');
+    let fotoNova = null;
+    const selUf = $('#ep-uf');
+    UI.UFS.forEach((uf) => { const o = document.createElement('option'); o.value = uf; o.textContent = uf; if (uf === u.estado) o.selected = true; selUf.appendChild(o); });
+    async function encherCidades() { const m = await UI.carregarMunicipios(); $('#ep-cidades').innerHTML = (m[selUf.value] || []).map((c) => `<option value="${UI.esc(c)}">`).join(''); }
+    if (u.estado) encherCidades();
+    selUf.addEventListener('change', encherCidades);
+    $('#ep-foto').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      fotoNova = await arquivoParaBase64(f, 800, 0.8);
+      $('#ep-avatar').innerHTML = UI.avatar(u.nome, 'w-24 h-24 text-2xl', fotoNova);
+    });
+    $('#f-perfil').addEventListener('submit', async (e) => {
+      e.preventDefault(); const f = e.target, b = f.querySelector('.btn-submit'), er = f.querySelector('[data-erro]');
+      er.classList.add('hidden'); b.disabled = true; b.textContent = 'Salvando…';
+      try {
+        const dto = { nome: f.nome.value, telefone: f.telefone.value, cidade: $('#ep-cidade').value,
+          estado: selUf.value, bio: f.bio.value };
+        if (fotoNova) dto.fotoBase64 = fotoNova;
+        await API.atualizarPerfil(dto);
+        API.mesclarUsuario({ nome: dto.nome, telefone: dto.telefone, cidade: dto.cidade, estado: dto.estado, bio: dto.bio, ...(fotoNova ? { fotoBase64: fotoNova } : {}) });
+        pintarPerfil(); fecharModal(); UI.toast('Perfil atualizado ✓', 'ok');
+        if (state.rota === 'config') viewConfig();
+      } catch (x) { b.disabled = false; b.textContent = 'Salvar'; er.textContent = x.message; er.classList.remove('hidden'); }
+    });
+  }
+
+  // Perfil público do doador (reputação estilo Uber)
+  async function abrirPerfilDoador(id) {
+    abrirModal(carregando('Carregando…'), 'max-w-md');
+    const u = API.usuario() || {};
+    try {
+      const [p, avals] = await Promise.all([
+        API.perfilPublicoDoador(id).catch(() => ({})),
+        API.avaliacoesDoador(id).catch(() => []),
+      ]);
+      const nota = p.notaMediaDoador ?? p.notaMedia ?? 0;
+      const total = p.totalAvaliacoesDoador ?? p.totalAvaliacoes ?? (avals || []).length;
+      $('#modal-card').innerHTML = `
+        <div class="p-7 text-center">
+          <div class="flex justify-center mb-3">${UI.avatar(p.nome || u.nome, 'w-24 h-24 text-2xl', p.fotoBase64 || u.fotoBase64)}</div>
+          <h3 class="text-2xl font-montserrat font-extrabold text-textDark">${UI.esc(p.nome || u.nome || 'Doador')}</h3>
+          <div class="mt-1">${UI.estrelas(nota)} <span class="text-textGrey font-semibold">${Number(nota).toFixed(1)} · ${total} avaliação(ões)</span></div>
+          ${(avals || []).length ? `<div class="mt-5 space-y-2 text-left">${avals.map((a) => `
+            <div class="p-3 bg-background rounded-xl">
+              <div class="flex items-center justify-between"><span class="font-bold text-sm text-textDark">${UI.esc(a.ongNome || 'ONG')}</span>${UI.estrelas(a.nota)}</div>
+              ${a.comentario ? `<p class="text-sm text-textGrey mt-1">${UI.esc(a.comentario)}</p>` : ''}
+              ${(a.fotos && a.fotos.length) ? `<div class="flex gap-2 mt-2">${a.fotos.map((f) => `<img src="${UI.fotoSrc(f)}" class="w-16 h-16 rounded-lg object-cover">`).join('')}</div>` : ''}
+            </div>`).join('')}</div>` : `<p class="text-textGrey text-sm mt-4">Você ainda não recebeu avaliações de ONGs.</p>`}
+        </div>`;
+    } catch (e) { $('#modal-card').innerHTML = `<div class="p-6">${erroBox(e.message)}</div>`; }
+  }
+
+  // Integrantes do projeto (equipe)
+  const EQUIPE = [
+    { nome: 'Gabriel Chinelatto', papel: 'Back-end e Designer', img: 'assets/img/gabriel.jpg' },
+    { nome: 'Arthur Souza', papel: 'Designer e Tester', img: 'assets/img/arthur.jpg' },
+    { nome: 'Luan Felipe', papel: 'Back-end e Designer', img: 'assets/img/luan.png' },
+    { nome: 'Abner Viola', papel: 'Front-end', img: 'assets/img/abner.jpg' },
+  ];
+  function abrirIntegrantes() {
+    abrirModal(`<div class="p-7">
+      <h3 class="text-xl font-montserrat font-bold text-textDark text-center mb-1">Integrantes do projeto</h3>
+      <p class="text-sm text-textGrey text-center mb-5">4º DSN — COTIL / UNICAMP</p>
+      <div class="grid grid-cols-2 gap-4">
+        ${EQUIPE.map((m) => `<div class="text-center bg-background rounded-2xl p-4">
+          <img src="${m.img}" alt="${UI.esc(m.nome)}" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'w-16 h-16 mx-auto rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold',innerText:'${UI.iniciais(m.nome)}'}))" class="w-16 h-16 mx-auto rounded-full object-cover">
+          <p class="font-bold text-textDark text-sm mt-2 leading-tight">${UI.esc(m.nome)}</p>
+          <p class="text-xs text-textGrey">${UI.esc(m.papel)}</p></div>`).join('')}
+      </div>
+    </div>`, 'max-w-md');
+  }
+
+  // =========================================================================
+  // SOBRE O CONNECT ONG (institucional)
+  // =========================================================================
+  const ODS = [
+    { n: 1, t: 'Erradicação da pobreza', cor: '#e5243b' },
+    { n: 2, t: 'Fome zero', cor: '#dda63a' },
+    { n: 10, t: 'Redução das desigualdades', cor: '#dd1367' },
+    { n: 17, t: 'Parcerias e meios de implementação', cor: '#19486a' },
+  ];
+  const FAQ = [
+    ['O Connect ONG cobra alguma taxa?', 'Não. A plataforma é gratuita para doadores e ONGs.'],
+    ['Como sei que a ONG é confiável?', 'ONGs verificadas têm selo, nota de avaliações e score de transparência com prestação de contas.'],
+    ['Que tipos de doação posso fazer?', 'Itens (roupas, alimentos, higiene, etc.) e doações em dinheiro via PIX para campanhas.'],
+    ['E meus dados (LGPD)?', 'Você controla o que aparece no seu perfil e pode excluir sua conta a qualquer momento.'],
+  ];
+  async function viewSobre() {
+    let s = {};
+    try { s = await API.estatisticas(); } catch {}
+    const stat = (v, l) => `<div class="text-center"><p class="text-3xl font-montserrat font-black text-primary">${v ?? '—'}</p><p class="text-xs text-textGrey font-semibold uppercase tracking-wide">${l}</p></div>`;
+    root().innerHTML = `
+      <div class="max-w-4xl mx-auto space-y-10 slide-up pb-6">
+        <!-- Hero -->
+        <div class="text-center">
+          <img src="assets/img/logo.jpg" alt="Connect ONG" onerror="this.style.display='none'" class="w-20 h-20 mx-auto rounded-2xl object-cover shadow mb-4">
+          <h3 class="text-3xl font-montserrat font-extrabold text-textDark">Conectando quem quer ajudar<br>a quem precisa</h3>
+          <p class="text-textGrey font-medium mt-3 max-w-2xl mx-auto">O Connect ONG aproxima doadores e organizações sociais com transparência, tecnologia e impacto real.</p>
+        </div>
+        <!-- Estatísticas -->
+        <div class="bg-white rounded-3xl shadow-card border border-gray-100 p-8 grid grid-cols-2 md:grid-cols-4 gap-6">
+          ${stat(s.totalOngs, 'ONGs')} ${stat(s.totalDoadores, 'Doadores')} ${stat(s.totalNecessidades, 'Necessidades')} ${stat(s.totalMatches ?? s.totalInteresses, 'Conexões')}
+        </div>
+        <!-- Missão/Visão/Valores -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+          ${[['ph-target', 'Missão', 'Facilitar doações e conectar generosidade a quem realmente precisa.'],
+             ['ph-eye', 'Visão', 'Ser a ponte digital de confiança entre doadores e ONGs no Brasil.'],
+             ['ph-heart', 'Valores', 'Transparência, empatia, tecnologia com propósito e impacto social.']].map(([i, t, d]) => `
+            <div class="bg-white rounded-2xl shadow-card border border-gray-100 p-6"><div class="w-12 h-12 rounded-xl bg-primary-light flex items-center justify-center text-primary mb-3"><i class="ph-fill ${i} text-2xl"></i></div>
+              <h4 class="font-montserrat font-bold text-textDark">${t}</h4><p class="text-sm text-textGrey mt-1">${d}</p></div>`).join('')}
+        </div>
+        <!-- Como funciona -->
+        <div>
+          <h4 class="text-xl font-montserrat font-bold text-textDark mb-4 text-center">Como funciona</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            ${[['1', 'A ONG publica', 'Cadastra necessidades e campanhas.'], ['2', 'Você encontra', 'Explora, filtra e demonstra interesse.'], ['3', 'A conexão acontece', 'Vocês conversam e a doação chega.']].map(([n, t, d]) => `
+              <div class="bg-white rounded-2xl shadow-card border border-gray-100 p-6 text-center"><div class="w-10 h-10 rounded-full bg-primary text-white font-black flex items-center justify-center mx-auto mb-3">${n}</div>
+                <h5 class="font-bold text-textDark">${t}</h5><p class="text-sm text-textGrey mt-1">${d}</p></div>`).join('')}
           </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-card border border-gray-100 p-6 space-y-4">
-          ${toggleLinha('contraste', 'ph-circle-half', 'Alto contraste', 'Realça bordas e textos', p.contraste)}
-          ${toggleLinha('semAnim', 'ph-personsimplerun', 'Reduzir animações', 'Menos movimento na tela', p.semAnim)}
+        <!-- ODS -->
+        <div>
+          <h4 class="text-xl font-montserrat font-bold text-textDark mb-4 text-center">Objetivos de Desenvolvimento Sustentável</h4>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            ${ODS.map((o) => `<div class="rounded-2xl p-5 text-white" style="background:${o.cor}"><p class="text-3xl font-montserrat font-black">${o.n}</p><p class="text-sm font-semibold mt-1">${o.t}</p></div>`).join('')}
+          </div>
         </div>
-        <div class="bg-white rounded-2xl shadow-card border border-gray-100 p-6">
-          <button id="btn-sair-config" class="w-full py-3 text-red-600 font-bold rounded-xl hover:bg-red-50 flex items-center justify-center gap-2"><i class="ph ph-sign-out"></i> Sair da conta</button>
+        <!-- Equipe -->
+        <div>
+          <h4 class="text-xl font-montserrat font-bold text-textDark mb-1 text-center">Nossa equipe</h4>
+          <p class="text-sm text-textGrey text-center mb-4">4º DSN — COTIL / UNICAMP</p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            ${EQUIPE.map((m) => `<div class="bg-white rounded-2xl shadow-card border border-gray-100 p-5 text-center">
+              <img src="${m.img}" alt="${UI.esc(m.nome)}" onerror="this.style.display='none'" class="w-20 h-20 mx-auto rounded-full object-cover mb-2">
+              <p class="font-bold text-textDark text-sm leading-tight">${UI.esc(m.nome)}</p><p class="text-xs text-textGrey">${UI.esc(m.papel)}</p></div>`).join('')}
+          </div>
         </div>
-        <p class="text-center text-xs text-textGrey">Connect ONG • Web do Doador • conectado a ${UI.esc(API.BASE)}</p>
+        <!-- FAQ -->
+        <div>
+          <h4 class="text-xl font-montserrat font-bold text-textDark mb-4 text-center">Perguntas frequentes</h4>
+          <div class="space-y-3 max-w-2xl mx-auto">
+            ${FAQ.map(([q, a]) => `<details class="bg-white rounded-2xl shadow-card border border-gray-100 p-5 group">
+              <summary class="font-bold text-textDark cursor-pointer flex items-center justify-between">${q}<i class="ph ph-caret-down group-open:rotate-180 transition-transform"></i></summary>
+              <p class="text-sm text-textGrey mt-2">${a}</p></details>`).join('')}
+          </div>
+        </div>
+        <p class="text-center text-xs text-textGrey">Projeto Integrador • COTIL / UNICAMP • 2026</p>
       </div>`;
-    root().querySelectorAll('[data-pref-fonte]').forEach((b) => b.addEventListener('click', () => { const pr = lerPrefs(); pr.fonte = b.dataset.prefFonte; salvarPrefs(pr); viewConfig(); }));
-    root().querySelectorAll('[data-toggle]').forEach((b) => b.addEventListener('click', () => { const pr = lerPrefs(); pr[b.dataset.toggle] = !pr[b.dataset.toggle]; salvarPrefs(pr); viewConfig(); }));
-    $('#btn-sair-config').addEventListener('click', () => { if (confirm('Deseja sair?')) { API.sair(); location.hash = ''; mostrarLogin(); } });
-  }
-  function toggleLinha(chave, icon, titulo, sub, ativo) {
-    return `<div class="flex items-center justify-between">
-      <div class="flex items-center gap-3"><i class="ph ${icon} text-xl text-primary"></i><div><p class="font-bold text-textDark">${titulo}</p><p class="text-xs text-textGrey">${sub}</p></div></div>
-      <button data-toggle="${chave}" class="w-12 h-7 rounded-full transition-colors ${ativo ? 'bg-primary' : 'bg-gray-300'} relative"><span class="absolute top-1 ${ativo ? 'right-1' : 'left-1'} w-5 h-5 bg-white rounded-full transition-all"></span></button>
-    </div>`;
   }
 
   // =========================================================================
@@ -1037,7 +1387,7 @@ const App = (() => {
   const VIEWS = {
     inicio: viewInicio, explorar: viewExplorar, matches: viewMatches, campanhas: viewCampanhas, dora: viewDora,
     ongs: viewOngs, favoritos: viewFavoritos, impacto: viewImpacto, ranking: viewRanking,
-    doacoes: viewDoacoes, config: viewConfig,
+    doacoes: viewDoacoes, config: viewConfig, sobre: viewSobre,
   };
   function irPara(rota) {
     if (!VIEWS[rota]) rota = 'inicio';
@@ -1073,6 +1423,9 @@ const App = (() => {
       });
       pintarPerfil();
     } catch { /* opcional */ }
+    // Preferências reais do backend (tema, fonte, acessibilidade).
+    try { state.prefs = await API.preferencias(); aplicarPreferencias(state.prefs); }
+    catch { /* mantém cache local */ }
   }
   function mostrarApp() {
     $('#view-login').style.opacity = '0';
@@ -1085,6 +1438,10 @@ const App = (() => {
   function mostrarLogin() {
     if (sinoPoll) { clearInterval(sinoPoll); sinoPoll = null; }
     fecharModal();
+    // Volta ao tema claro no login (as prefs são por-usuário).
+    state.prefs = null; cfgDraft = null;
+    document.body.classList.remove('tema-escuro', 'alto-contraste', 'fonte-dislexia', 'reduz-motion');
+    document.documentElement.style.fontSize = '16px';
     // Limpa caches em memória para não vazar dados entre sessões.
     state.interMap = null; state.necessidades = null; state.campanhas = null;
     state.ongs = null; state.favIds = null; matches.dados = null; dora.historico = [];
@@ -1253,7 +1610,7 @@ const App = (() => {
   // Init
   // =========================================================================
   function init() {
-    aplicarPrefs(lerPrefs());
+    aplicarPreferencias(lerPrefsCache());
     montarLogos();
     montarNav();
     ligarAuth();
