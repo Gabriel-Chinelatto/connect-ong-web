@@ -107,5 +107,35 @@ const API = (() => {
     assistente: (mensagem, historico, cidade) =>
       post('/assistente', { mensagem, historico: historico || [], cidade: cidade || null }),
     sugestoes: () => post('/assistente/sugestoes', {}),
+
+    // ONGs / perfil público
+    ongs: () => get('/ongs'),
+    perfilOng: (ongId) => get('/ongs/' + ongId + '/perfil-publico'),
+
+    // Favoritos (usuarioId; tipo ONG)
+    favoritos: () => get('/favoritos?usuarioId=' + usuario().id),
+    favoritosIds: () => get('/favoritos/ids?usuarioId=' + usuario().id + '&tipo=ONG'),
+    favoritar: (alvoId) => post('/favoritos', { usuarioId: usuario().id, tipo: 'ONG', alvoId }),
+    desfavoritar: (alvoId) =>
+      req('DELETE', '/favoritos?usuarioId=' + usuario().id + '&tipo=ONG&alvoId=' + alvoId),
+
+    // Ranking / transparência / conquistas
+    ranking: (limite = 20) => get('/publico/ranking?limite=' + limite),
+    conquistas: () => get('/conquistas/doador/' + usuario().id),
+
+    // Notificações
+    notificacoes: () => get('/notificacoes?usuarioId=' + usuario().id),
+    naoLidas: () => get('/notificacoes/nao-lidas?usuarioId=' + usuario().id),
+    marcarLida: (id) => put('/notificacoes/' + id + '/lida'),
+    marcarTodas: () => put('/notificacoes/marcar-todas?usuarioId=' + usuario().id),
+
+    // Avaliações (doador → ONG)
+    avaliacoes: (ongId) => get('/avaliacoes?ongId=' + ongId),
+    avaliar: (ongId, nota, comentario) =>
+      post('/avaliacoes', { ongId, doadorId: usuario().id, nota, comentario: comentario || '' }),
+
+    // Doações (itens) do próprio doador
+    minhasDoacoes: () => get('/doacoes/minhas'),
+    cadastrarDoacao: (d) => post('/doacoes', d),
   };
 })();
