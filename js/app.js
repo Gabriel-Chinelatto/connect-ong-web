@@ -114,6 +114,27 @@ const App = (() => {
     if (!state.campanhas || force) state.campanhas = await API.campanhas();
     return state.campanhas;
   }
+  // Mapa necessidadeId -> interesse ({status,id}) do doador, para o botão 3 estados.
+  async function getInteresseMapa(force) {
+    if (state.interMap && !force) return state.interMap;
+    const lista = await API.meusInteresses();
+    matches.dados = lista; // reaproveita na tela de Matches
+    state.interMap = {};
+    for (const i of lista) {
+      // guarda o interesse mais relevante por necessidade (ativo > recusado)
+      const atual = state.interMap[i.necessidadeId];
+      if (!atual || peso(i.status) >= peso(atual.status)) state.interMap[i.necessidadeId] = { status: i.status, id: i.id };
+    }
+    return state.interMap;
+  }
+  const peso = (s) => ({ RECUSADO: 1, CONCLUIDO: 2, PENDENTE: 3, ACEITO: 4 }[s] || 0);
+  // Estado do botão de interesse de uma necessidade: 'nenhum' | 'demonstrado' | 'reabrir'
+  function estadoInteresse(necId) {
+    const i = state.interMap && state.interMap[necId];
+    if (!i) return 'nenhum';
+    if (i.status === 'RECUSADO') return 'reabrir';
+    return 'demonstrado';
+  }
 
   // =========================================================================
   // TELA: INÍCIO
@@ -193,12 +214,18 @@ const App = (() => {
   // =========================================================================
   // TELA: EXPLORAR
   // =========================================================================
-  const explorar = { termo: '', categoria: 'Todos' };
+  const explorar = { termo: '', categoria: 'Todos', urgentes: false };
   async function viewExplorar() {
     root().innerHTML = carregando();
     try {
       const [nec, cats] = await Promise.all([getNecessidades(), getCategorias()]);
-      const chips = ['Todos', ...cats];
+      await getInteresseMapa().catch(() => {});
+      // Só categorias realmente presentes nos dados (normalizadas, sem duplicar).
+      const presentes = [];
+      for (const n of nec) { const v = UI.normalizarCat(n.categoria); if (v && !presentes.includes(v)) presentes.push(v); }
+      const ordem = UI.CANONICAS.map((c) => c.valor);
+      presentes.sort((a, b) => ordem.indexOf(a) - ordem.indexOf(b));
+      const chips = ['Todos', ...presentes];
       root().innerHTML = `
         <div class="flex flex-col md:flex-row gap-3 mb-6 slide-up">
           <div class="relative w-full md:w-1/2">
@@ -207,13 +234,16 @@ const App = (() => {
               class="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 shadow-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
           </div>
           <div class="flex gap-2 overflow-x-auto no-scrollbar w-full md:w-auto pb-1" id="chips">
-            ${chips.map((c) => `<button data-cat="${UI.esc(c)}" class="px-4 py-2.5 rounded-full font-bold text-sm whitespace-nowrap border transition-colors
-              ${c === explorar.categoria ? 'bg-textDark text-white border-textDark' : 'bg-white border-gray-200 text-textGrey hover:border-primary hover:text-primary'}">${UI.esc(c)}</button>`).join('')}
+            ${chips.map((c) => { const rot = c === 'Todos' ? 'Todos' : UI.cat(c).rotulo; const em = c === 'Todos' ? '' : UI.cat(c).emoji + ' ';
+              return `<button data-cat="${UI.esc(c)}" class="px-4 py-2.5 rounded-full font-bold text-sm whitespace-nowrap border transition-colors
+              ${c === explorar.categoria ? 'bg-textDark text-white border-textDark' : 'bg-white border-gray-200 text-textGrey hover:border-primary hover:text-primary'}">${em}${UI.esc(rot)}</button>`; }).join('')}
+            <button data-urg class="px-4 py-2.5 rounded-full font-bold text-sm whitespace-nowrap border transition-colors ${explorar.urgentes ? 'bg-accent text-white border-accent' : 'bg-white border-gray-200 text-textGrey hover:border-accent hover:text-accent'}">🔥 Urgentes</button>
           </div>
         </div>
         <div id="grid-nec"></div>`;
       pintarGrid(nec);
       $('#busca').addEventListener('input', (e) => { explorar.termo = e.target.value; pintarGrid(nec); });
+      $('[data-urg]').addEventListener('click', () => { explorar.urgentes = !explorar.urgentes; viewExplorar(); });
     } catch (e) {
       root().innerHTML = erroBox(e.message, 'explorar');
     }
@@ -222,11 +252,17 @@ const App = (() => {
     const t = explorar.termo.trim().toLowerCase();
     const filtrada = nec.filter((n) => {
       if (n.status !== 'ABERTA') return false;
-      const catOk = explorar.categoria === 'Todos' ||
-        UI.cat(n.categoria).nome.toLowerCase().startsWith(explorar.categoria.toLowerCase().slice(0, 5));
+      const catOk = explorar.categoria === 'Todos' || UI.normalizarCat(n.categoria) === explorar.categoria;
+      const urgOk = !explorar.urgentes || n.urgente;
       const txt = (n.titulo + ' ' + n.descricao + ' ' + n.ongNome + ' ' + (n.ongCidade || '')).toLowerCase();
-      return catOk && (!t || txt.includes(t));
+      return catOk && urgOk && (!t || txt.includes(t));
     });
+    // Ordenação como no mobile: disponíveis primeiro; urgentes acima; recentes antes;
+    // quem já tem interesse ativo vai para o fim.
+    const grupo = (n) => { const e = estadoInteresse(n.id); return e === 'demonstrado' ? 2 : 0; };
+    filtrada.sort((a, b) => grupo(a) - grupo(b)
+      || (b.urgente === a.urgente ? 0 : b.urgente ? 1 : -1)
+      || new Date(b.dataCriacao) - new Date(a.dataCriacao));
     const g = $('#grid-nec');
     if (!g) return;
     g.innerHTML = filtrada.length
@@ -234,8 +270,15 @@ const App = (() => {
       : vazio('ph-magnifying-glass', 'Nada encontrado', 'Tente outra busca ou categoria.');
   }
 
+  function seloEstadoNec(necId) {
+    const e = estadoInteresse(necId);
+    if (e === 'demonstrado') return '<span class="text-xs font-bold text-primary bg-primary-light px-2.5 py-1 rounded-full flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Interesse demonstrado</span>';
+    if (e === 'reabrir') return '<span class="text-xs font-bold text-textGrey bg-gray-100 px-2.5 py-1 rounded-full">Recusado</span>';
+    return '';
+  }
   function cardNecessidade(n) {
     const c = UI.cat(n.categoria);
+    const selo = seloEstadoNec(n.id);
     return `<article data-necessidade="${n.id}" class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer group">
       <div class="h-28 flex items-center justify-center text-5xl ${c.cls}">${c.emoji}</div>
       <div class="p-5">
@@ -245,6 +288,7 @@ const App = (() => {
         </div>
         <h4 class="font-montserrat font-bold text-textDark text-lg leading-tight group-hover:text-primary transition-colors">${UI.esc(n.titulo)}</h4>
         <p class="text-sm text-textGrey mt-1 line-clamp-2">${UI.esc(n.descricao || '')}</p>
+        ${selo ? `<div class="mt-3">${selo}</div>` : ''}
         <div class="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
           ${UI.avatar(n.ongNome, 'w-8 h-8 text-xs')}
           <div class="min-w-0">
@@ -274,11 +318,20 @@ const App = (() => {
             <p class="text-sm text-textGrey"><i class="ph ph-map-pin"></i> ${UI.esc(n.ongCidade || 'Brasil')} ${n.ongNotaMedia ? '· ' + UI.estrelas(n.ongNotaMedia) : ''}</p>
           </div>
         </div>
-        <button data-interesse="${n.id}" class="btn-interesse w-full mt-6 py-4 bg-accent hover:bg-accent-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-accent/30 transition-transform hover:-translate-y-0.5 disabled:opacity-60 flex items-center justify-center gap-2">
-          <i class="ph-fill ph-hand-heart text-xl"></i> Quero doar isso
-        </button>
-        <p class="text-center text-xs text-textGrey mt-3">A ONG será avisada e vocês poderão conversar pelo chat.</p>
+        <div id="area-interesse">${botaoInteresse(n.id)}</div>
       </div>`);
+  }
+  function botaoInteresse(necId) {
+    const e = estadoInteresse(necId);
+    if (e === 'demonstrado') {
+      return `<button disabled class="w-full mt-6 py-4 bg-primary-light text-primary-dark font-montserrat font-bold uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2">
+        <i class="ph-fill ph-check-circle text-xl"></i> Interesse demonstrado</button>
+        <button data-rota="matches" class="w-full text-center text-sm font-bold text-primary mt-3">Acompanhar em Matches →</button>`;
+    }
+    const rot = e === 'reabrir' ? 'Demonstrar novamente' : 'Quero doar isso';
+    return `<button data-interesse="${necId}" class="btn-interesse w-full mt-6 py-4 bg-accent hover:bg-accent-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-accent/30 transition-transform hover:-translate-y-0.5 disabled:opacity-60 flex items-center justify-center gap-2">
+      <i class="ph-fill ph-hand-heart text-xl"></i> ${rot}</button>
+    <p class="text-center text-xs text-textGrey mt-3">A ONG será avisada e vocês poderão conversar pelo chat.</p>`;
   }
 
   async function demonstrarInteresse(necessidadeId, btn) {
@@ -287,9 +340,14 @@ const App = (() => {
     btn.innerHTML = '<i class="ph ph-circle-notch spin text-xl"></i> Enviando…';
     try {
       await API.demonstrarInteresse(Number(necessidadeId));
-      fecharModal();
-      UI.toast('Interesse enviado! Acompanhe em Matches.', 'ok');
       state.__matchesDirty = true;
+      await getInteresseMapa(true).catch(() => {});
+      UI.toast('Interesse enviado! Acompanhe em Matches.', 'ok');
+      // Atualiza o botão dentro do modal (sem fechar) e a tela ao fundo.
+      const area = $('#area-interesse');
+      if (area) area.innerHTML = botaoInteresse(Number(necessidadeId));
+      if (state.rota === 'explorar' && state.necessidades) pintarGrid(state.necessidades);
+      if (state.rota === 'inicio') viewInicio();
     } catch (e) {
       btn.disabled = false;
       btn.innerHTML = orig;
@@ -997,15 +1055,24 @@ const App = (() => {
     const u = API.usuario();
     if (!u) return;
     $('#perfil-nome').textContent = u.nome || 'Doador';
-    $('#perfil-avatar').innerHTML = UI.avatar(u.nome, 'w-10 h-10');
+    $('#perfil-avatar').innerHTML = UI.avatar(u.nome, 'w-10 h-10', u.fotoBase64);
   }
   let sinoPoll = null;
-  function aoEntrar() {
+  async function aoEntrar() {
     pintarPerfil();
     atualizarSino();
     if (sinoPoll) clearInterval(sinoPoll);
     sinoPoll = setInterval(atualizarSino, 30000);
     irPara(location.hash.replace('#/', '') || 'inicio');
+    // Enriquamos a sessão com o perfil real (foto, cidade, estado) para avatares e frete.
+    try {
+      const p = await API.meuPerfil();
+      API.mesclarUsuario({
+        fotoBase64: p.fotoBase64 || null, cidade: p.cidade || null,
+        estado: p.estado || null, telefone: p.telefone || null, bio: p.bio || null,
+      });
+      pintarPerfil();
+    } catch { /* opcional */ }
   }
   function mostrarApp() {
     $('#view-login').style.opacity = '0';
@@ -1016,9 +1083,25 @@ const App = (() => {
     }, 300);
   }
   function mostrarLogin() {
+    if (sinoPoll) { clearInterval(sinoPoll); sinoPoll = null; }
+    fecharModal();
+    // Limpa caches em memória para não vazar dados entre sessões.
+    state.interMap = null; state.necessidades = null; state.campanhas = null;
+    state.ongs = null; state.favIds = null; matches.dados = null; dora.historico = [];
+    // Reseta os formulários (o botão ficava preso no spinner após um login).
+    const fl = $('#form-login'), fc = $('#form-cadastro');
+    fl.reset(); fc.reset();
+    fl.hidden = false; fc.hidden = true;
+    fl.querySelector('.btn-submit').disabled = false;
+    fl.querySelector('.btn-submit').innerHTML = 'Entrar na plataforma';
+    fc.querySelector('.btn-submit').disabled = false;
+    fc.querySelector('.btn-submit').innerHTML = 'Criar conta e entrar';
+    fl.querySelector('[data-erro]').classList.add('hidden');
+    fc.querySelector('[data-erro]').classList.add('hidden');
     $('#view-app').hidden = true;
     const vl = $('#view-login');
     vl.hidden = false; vl.style.opacity = '1';
+    carregarStatsLogin();
   }
 
   async function carregarStatsLogin() {
@@ -1054,14 +1137,17 @@ const App = (() => {
   function ligarAuth() {
     submitAuth($('#form-login'), async (d) => {
       const r = await API.login(d.email, d.senha);
+      if (r.requer2fa) throw new Error('Esta conta usa verificação em 2 fatores (não suportada nesta demo web).');
       if (r.tipo && r.tipo !== 'DOADOR') { API.sair(); throw new Error('Esta conta é de ONG. A web é a experiência do doador.'); }
       API.salvarSessao(r);
       UI.toast('Bem-vindo, ' + (r.nome || '').split(' ')[0] + '!', 'ok');
       mostrarApp();
     });
     submitAuth($('#form-cadastro'), async (d) => {
-      const payload = { nome: d.nome, email: d.email, senha: d.senha, tipo: 'DOADOR',
-        cidade: d.cidade || null, uf: (d.uf || '').toUpperCase() || null };
+      if (d.senha !== d.confirmarSenha) throw new Error('As senhas não conferem.');
+      if (!d.lgpd) throw new Error('É preciso aceitar a Política de Privacidade.');
+      const payload = { nome: d.nome, email: d.email, senha: d.senha,
+        telefone: d.telefone || null, cidade: d.cidade || null, estado: (d.uf || '').toUpperCase() || null };
       await API.registrar(payload);
       const r = await API.login(d.email, d.senha); // entra direto
       API.salvarSessao(r);
@@ -1076,12 +1162,64 @@ const App = (() => {
       $('#form-cadastro').hidden = alvo !== 'cadastro';
     }));
 
+    // Mostrar/ocultar senha
+    document.querySelectorAll('[data-ver-senha]').forEach((b) => b.addEventListener('click', () => {
+      const inp = b.parentElement.querySelector('input');
+      const ver = inp.type === 'password';
+      inp.type = ver ? 'text' : 'password';
+      b.querySelector('i').className = 'ph ' + (ver ? 'ph-eye-slash' : 'ph-eye') + ' text-xl';
+    }));
+
+    // Seletor UF/cidade (IBGE offline)
+    const selUf = $('#cad-uf');
+    UI.UFS.forEach((uf) => { const o = document.createElement('option'); o.value = uf; o.textContent = uf; selUf.appendChild(o); });
+    selUf.addEventListener('change', async () => {
+      const mun = await UI.carregarMunicipios();
+      const dl = $('#cad-cidades');
+      dl.innerHTML = (mun[selUf.value] || []).map((c) => `<option value="${UI.esc(c)}">`).join('');
+      $('#cad-cidade').value = '';
+    });
+
     // Conta demo
     $('[data-demo]').addEventListener('click', () => {
       const f = $('#form-login');
       f.email.value = 'demo.joao@connectong.com';
       f.senha.value = 'demo123';
       f.requestSubmit();
+    });
+
+    // Esqueci minha senha (fluxo 2 passos)
+    $('[data-esqueci]').addEventListener('click', abrirEsqueciSenha);
+  }
+
+  function abrirEsqueciSenha() {
+    abrirModal(`<form id="form-esqueci" class="p-7 space-y-4">
+      <div class="text-center mb-2"><div class="w-14 h-14 bg-primary-light rounded-full flex items-center justify-center mx-auto mb-3 text-primary"><i class="ph ph-lock-key-open text-3xl"></i></div>
+        <h3 class="text-xl font-montserrat font-bold text-textDark">Recuperar senha</h3><p class="text-sm text-textGrey mt-1">Enviaremos um código para seu e-mail.</p></div>
+      <input name="email" type="email" required placeholder="Seu e-mail" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <div id="reset-extra" class="space-y-3 hidden">
+        <input name="codigo" placeholder="Código recebido" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+        <input name="novaSenha" type="password" minlength="6" placeholder="Nova senha" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      </div>
+      <p data-erro class="text-sm font-semibold text-red-600 hidden"></p>
+      <button class="btn-submit w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold rounded-2xl disabled:opacity-60">Enviar código</button>
+    </form>`, 'max-w-sm');
+    let fase = 1;
+    $('#form-esqueci').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target, btn = f.querySelector('.btn-submit'), erro = f.querySelector('[data-erro]');
+      erro.classList.add('hidden'); btn.disabled = true;
+      try {
+        if (fase === 1) {
+          await API.esqueciSenha(f.email.value);
+          fase = 2; $('#reset-extra').classList.remove('hidden');
+          btn.textContent = 'Redefinir senha'; btn.disabled = false;
+          UI.toast('Se o e-mail existir, o código foi enviado. Na feira, use o código demo.', 'info');
+        } else {
+          await API.redefinirSenha(f.email.value, f.codigo.value, f.novaSenha.value);
+          fecharModal(); UI.toast('Senha redefinida! Faça login.', 'ok');
+        }
+      } catch (err) { erro.textContent = err.message; erro.classList.remove('hidden'); btn.disabled = false; }
     });
   }
 

@@ -14,25 +14,49 @@ const UI = (() => {
     return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  // Metadados por categoria (emoji + cor) — normaliza acentos/plural do backend.
-  const CATS = {
-    aliment: { emoji: '🍎', cls: 'bg-green-100 text-green-700' },
-    roupa: { emoji: '👕', cls: 'bg-blue-100 text-blue-700' },
-    vestu: { emoji: '👕', cls: 'bg-blue-100 text-blue-700' },
-    higien: { emoji: '🧼', cls: 'bg-cyan-100 text-cyan-700' },
-    brinq: { emoji: '🧸', cls: 'bg-pink-100 text-pink-700' },
-    educ: { emoji: '📚', cls: 'bg-indigo-100 text-indigo-700' },
-    saude: { emoji: '❤️', cls: 'bg-red-100 text-red-700' },
-    saúde: { emoji: '❤️', cls: 'bg-red-100 text-red-700' },
-  };
+  // Categorias canônicas — espelham o backend e o mobile (utils/categorias.dart).
+  // valor = o que trafega/armazena (sem acento, plural); rotulo = exibição.
+  const CANONICAS = [
+    { valor: 'Alimentos', rotulo: 'Alimentos', emoji: '🍎', cls: 'bg-green-100 text-green-700' },
+    { valor: 'Roupas', rotulo: 'Roupas', emoji: '👕', cls: 'bg-blue-100 text-blue-700' },
+    { valor: 'Higiene', rotulo: 'Higiene', emoji: '🧼', cls: 'bg-purple-100 text-purple-700' },
+    { valor: 'Brinquedos', rotulo: 'Brinquedos', emoji: '🧸', cls: 'bg-pink-100 text-pink-700' },
+    { valor: 'Educacao', rotulo: 'Educação', emoji: '📚', cls: 'bg-amber-100 text-amber-700' },
+    { valor: 'Saude', rotulo: 'Saúde', emoji: '❤️', cls: 'bg-red-100 text-red-700' },
+  ];
+  // Chave de comparação: minúsculas e sem acento (igual ao mobile _chave).
+  function chaveCat(v) {
+    let s = String(v || '').trim().toLowerCase();
+    const de = 'áàâãäéèêëíìîïóòôõöúùûüç', para = 'aaaaaeeeeiiiiooooouuuuc';
+    for (let i = 0; i < de.length; i++) s = s.split(de[i]).join(para[i]);
+    return s;
+  }
+  // Mapeia qualquer valor ao canônico ("alimento"/"Alimento" → "Alimentos").
+  function normalizarCat(valor) {
+    const k = chaveCat(valor);
+    for (const c of CANONICAS) { const ck = chaveCat(c.valor); if (k === ck || k + 's' === ck) return c.valor; }
+    return String(valor || '').trim();
+  }
   function cat(nome) {
-    const key = String(nome || '').toLowerCase();
-    for (const k in CATS) if (key.startsWith(k)) return { nome, ...CATS[k] };
-    return { nome: nome || 'Outros', emoji: '📦', cls: 'bg-gray-100 text-gray-700' };
+    const v = normalizarCat(nome);
+    const c = CANONICAS.find((x) => x.valor === v);
+    return c || { valor: v || 'Outros', rotulo: v || 'Outros', emoji: '📦', cls: 'bg-gray-100 text-gray-700' };
   }
   function catChip(nome) {
     const c = cat(nome);
-    return `<span class="text-xs font-bold px-3 py-1 rounded-full ${c.cls}">${c.emoji} ${esc(c.nome)}</span>`;
+    return `<span class="text-xs font-bold px-3 py-1 rounded-full ${c.cls}">${c.emoji} ${esc(c.rotulo)}</span>`;
+  }
+
+  // UF do Brasil + municípios IBGE (offline, do asset copiado do mobile).
+  const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+  let _municipios = null;
+  async function carregarMunicipios() {
+    if (_municipios) return _municipios;
+    try {
+      const r = await fetch('assets/dados/municipios_por_uf.json');
+      _municipios = await r.json();
+    } catch { _municipios = {}; }
+    return _municipios;
   }
 
   // Avatar em iniciais com cor derivada do nome (sem depender de imagem externa).
@@ -45,7 +69,15 @@ const UI = (() => {
     let h = 0; for (const ch of String(nome || '')) h = ch.charCodeAt(0) + ((h << 5) - h);
     return AV[Math.abs(h) % AV.length];
   }
-  function avatar(nome, tamanho = 'w-12 h-12 text-base') {
+  function fotoSrc(base64) {
+    if (!base64) return null;
+    return String(base64).startsWith('data:') ? base64 : 'data:image/jpeg;base64,' + base64;
+  }
+  function avatar(nome, tamanho = 'w-12 h-12 text-base', foto = null) {
+    const src = fotoSrc(foto);
+    if (src) {
+      return `<img src="${src}" alt="${esc(nome)}" class="${tamanho} rounded-full object-cover flex-shrink-0 bg-gray-100">`;
+    }
     return `<div class="${tamanho} rounded-full flex items-center justify-center font-montserrat font-bold text-white flex-shrink-0"
       style="background:${corNome(nome)}">${esc(iniciais(nome))}</div>`;
   }
@@ -93,5 +125,9 @@ const UI = (() => {
     return `<span class="inline-flex items-center gap-0.5">${s}</span>`;
   }
 
-  return { esc, brl, cat, catChip, avatar, iniciais, corNome, toast, dataCurta, horaCurta, estrelas };
+  return {
+    esc, brl, cat, catChip, normalizarCat, chaveCat, CANONICAS,
+    avatar, fotoSrc, iniciais, corNome, toast, dataCurta, horaCurta, estrelas,
+    UFS, carregarMunicipios,
+  };
 })();
