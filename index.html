@@ -160,8 +160,8 @@
 
     <!-- ===================== APP (DOADOR) ===================== -->
     <div id="view-app" class="flex h-full w-full bg-background" hidden>
-        <!-- Sidebar -->
-        <aside class="w-20 lg:w-64 bg-white border-r border-gray-100 flex flex-col justify-between h-full py-7 shadow-premium z-20">
+        <!-- Sidebar (escondida no celular; vira nav inferior) -->
+        <aside class="hidden md:flex w-20 lg:w-64 bg-white border-r border-gray-100 flex-col justify-between h-full py-7 shadow-premium z-20">
             <div>
                 <div class="px-6 mb-10 flex items-center justify-center lg:justify-start gap-3">
                     <div class="logo-slot w-10 h-10 flex-shrink-0"></div>
@@ -197,8 +197,11 @@
                     </button>
                 </div>
             </header>
-            <div id="page-root" class="px-6 lg:px-8 py-8 max-w-screen-xl mx-auto"></div>
+            <div id="page-root" class="px-4 sm:px-6 lg:px-8 py-8 pb-28 md:pb-8 max-w-screen-xl mx-auto"></div>
         </main>
+
+        <!-- Navegação inferior (só no celular) -->
+        <nav id="nav-mobile" class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-100 flex items-stretch justify-around px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)]"></nav>
     </div>
 
     <!-- Camada de diálogo (detalhe/PIX/etc.) -->

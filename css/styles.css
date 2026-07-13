@@ -33,6 +33,8 @@
 
 /* --- Utilitários --- */
 [hidden] { display: none !important; }
+/* Trava de segurança: nada de rolagem horizontal na área do app */
+#view-app main { overflow-x: hidden; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

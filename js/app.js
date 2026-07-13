@@ -56,6 +56,10 @@ const App = (() => {
       <p class="hidden lg:block text-[11px] font-bold text-textGrey/50 uppercase tracking-wider px-4 mt-4 mb-1">Você</p>
       <hr class="lg:hidden border-gray-100 my-2">
       ${s}`;
+    // Nav inferior (celular): só as rotas principais
+    $('#nav-mobile').innerHTML = ROTAS.filter((r) => r.g === 'p').map((r) => `
+      <button data-rota="${r.id}" data-navm="${r.id}" class="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-textGrey">
+        <i class="ph ${r.icon} text-2xl"></i><span class="text-[10px] font-semibold">${r.label}</span></button>`).join('');
   }
   function marcarNav(id) {
     document.querySelectorAll('[data-nav]').forEach((b) => {
@@ -63,6 +67,13 @@ const App = (() => {
       b.classList.toggle('bg-primary-light', ativo);
       b.classList.toggle('text-primary-dark', ativo);
       b.classList.toggle('font-bold', ativo);
+      b.classList.toggle('text-textGrey', !ativo);
+      const ic = b.querySelector('i');
+      ic.className = ic.className.replace(ativo ? 'ph ' : 'ph-fill ', ativo ? 'ph-fill ' : 'ph ');
+    });
+    document.querySelectorAll('[data-navm]').forEach((b) => {
+      const ativo = b.dataset.navm === id;
+      b.classList.toggle('text-primary', ativo);
       b.classList.toggle('text-textGrey', !ativo);
       const ic = b.querySelector('i');
       ic.className = ic.className.replace(ativo ? 'ph ' : 'ph-fill ', ativo ? 'ph-fill ' : 'ph ');
@@ -119,9 +130,22 @@ const App = (() => {
 
       root().innerHTML = `
         <!-- Saudação -->
-        <div class="mb-8 slide-up">
+        <div class="mb-6 slide-up">
           <p class="text-textGrey font-semibold">Olá, ${UI.esc((u?.nome || '').split(' ')[0] || 'doador')} 👋</p>
-          <h3 class="text-3xl font-montserrat font-extrabold text-textDark mt-1">Pronto para transformar vidas hoje?</h3>
+          <h3 class="text-2xl sm:text-3xl font-montserrat font-extrabold text-textDark mt-1">Pronto para transformar vidas hoje?</h3>
+        </div>
+
+        <!-- Acesso rápido -->
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-9 slide-up" style="animation-delay:.03s">
+          ${[
+            { r: 'ongs', i: 'ph-buildings', l: 'ONGs' },
+            { r: 'favoritos', i: 'ph-star', l: 'Favoritos' },
+            { r: 'impacto', i: 'ph-chart-line-up', l: 'Impacto' },
+            { r: 'ranking', i: 'ph-trophy', l: 'Ranking' },
+            { r: 'doacoes', i: 'ph-hand-heart', l: 'Doações' },
+            { r: 'campanhas', i: 'ph-megaphone', l: 'Campanhas' },
+          ].map((a) => `<button data-rota="${a.r}" class="bg-white rounded-2xl border border-gray-100 shadow-card py-4 flex flex-col items-center gap-1.5 hover:-translate-y-0.5 hover:border-primary transition-all">
+            <i class="ph-fill ${a.i} text-2xl text-primary"></i><span class="text-xs font-bold text-textDark">${a.l}</span></button>`).join('')}
         </div>
 
         <!-- Sugestões da IA -->
