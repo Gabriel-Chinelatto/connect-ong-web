@@ -394,6 +394,7 @@ const App = (() => {
     root().innerHTML = carregando();
     try {
       if (!matches.dados || state.__matchesDirty) { matches.dados = await API.meusInteresses(); state.__matchesDirty = false; }
+      state.interMap = null; await getInteresseMapa().catch(() => {});
       pintarMatches();
     } catch (e) {
       root().innerHTML = erroBox(e.message, 'matches');
@@ -402,93 +403,195 @@ const App = (() => {
   function pintarMatches() {
     const conta = (g) => matches.dados.filter((i) => GRUPOS[g].status.includes(i.status)).length;
     const lista = matches.dados.filter((i) => GRUPOS[matches.aba].status.includes(i.status));
+    // Agrupa por ONG (resolve "tudo jogado").
+    const grupos = {};
+    for (const i of lista) { (grupos[i.ongId] = grupos[i.ongId] || { ong: i, itens: [] }).itens.push(i); }
     root().innerHTML = `
-      <div class="flex gap-2 mb-6 border-b border-gray-100 slide-up">
+      <div class="flex gap-2 mb-6 border-b border-gray-100 slide-up overflow-x-auto no-scrollbar">
         ${Object.keys(GRUPOS).map((g) => `
-          <button data-aba="${g}" class="px-4 py-3 font-bold text-sm border-b-2 transition-colors flex items-center gap-2
+          <button data-aba="${g}" class="px-4 py-3 font-bold text-sm border-b-2 whitespace-nowrap transition-colors flex items-center gap-2
             ${g === matches.aba ? 'border-primary text-primary' : 'border-transparent text-textGrey hover:text-textDark'}">
             <i class="ph ${GRUPOS[g].icon}"></i> ${GRUPOS[g].label}
             <span class="text-xs px-2 py-0.5 rounded-full ${g === matches.aba ? 'bg-primary text-white' : 'bg-gray-100 text-textGrey'}">${conta(g)}</span>
           </button>`).join('')}
       </div>
-      <div class="slide-up">${lista.length ? lista.map(cardMatch).join('') : vazio('ph-heart', 'Nada aqui ainda', 'Demonstre interesse em uma necessidade para começar um match.')}</div>`;
+      <div class="slide-up space-y-5">${lista.length ? Object.values(grupos).map(grupoOngCard).join('')
+        : vazio('ph-heart', 'Nada aqui ainda', 'Demonstre interesse em uma necessidade para começar um match.')}</div>`;
   }
-  function cardMatch(i) {
-    const badge = {
-      ACEITO: 'bg-green-100 text-green-700', PENDENTE: 'bg-yellow-100 text-yellow-700',
-      RECUSADO: 'bg-red-100 text-red-600', CONCLUIDO: 'bg-primary-light text-primary-dark',
-    }[i.status] || 'bg-gray-100 text-gray-600';
+  function grupoOngCard(g) {
+    const o = g.ong;
+    return `<div class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden">
+      <button data-perfil-ong="${o.ongId}" class="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 text-left">
+        ${UI.avatar(o.ongNome, 'w-11 h-11')}
+        <div class="flex-1 min-w-0"><p class="font-montserrat font-bold text-textDark truncate">${UI.esc(o.ongNome)}</p>
+          <p class="text-xs text-textGrey">${g.itens.length} doação(ões) · ver perfil</p></div>
+        <i class="ph ph-caret-right text-textGrey"></i>
+      </button>
+      <div class="divide-y divide-gray-100">${g.itens.map(rowMatch).join('')}</div>
+    </div>`;
+  }
+  function rowMatch(i) {
+    const badge = { ACEITO: 'bg-green-100 text-green-700', PENDENTE: 'bg-yellow-100 text-yellow-700',
+      RECUSADO: 'bg-red-100 text-red-600', CONCLUIDO: 'bg-primary-light text-primary-dark' }[i.status] || 'bg-gray-100 text-gray-600';
     const rotulo = { ACEITO: 'Match aceito', PENDENTE: 'Aguardando ONG', RECUSADO: 'Recusado', CONCLUIDO: 'Concluído' }[i.status] || i.status;
-    return `<div class="bg-white rounded-2xl shadow-card border border-gray-100 p-5 mb-4 flex flex-col sm:flex-row sm:items-center gap-4">
-      ${UI.avatar(i.ongNome, 'w-12 h-12')}
+    let acoes = '';
+    if (i.status === 'ACEITO') acoes = `
+      <button data-chat="${i.id}" data-ong="${UI.esc(i.ongNome)}" data-ongid="${i.ongId}" class="px-3 py-2 bg-primary hover:bg-primary-dark text-white font-bold text-sm rounded-xl flex items-center gap-1"><i class="ph-fill ph-chat-circle-text"></i> Conversar</button>
+      <button data-concluir="${i.id}" class="px-3 py-2 bg-white border border-primary text-primary font-bold text-sm rounded-xl hover:bg-primary-light">Concluir</button>`;
+    else if (i.status === 'CONCLUIDO') acoes = `
+      <button data-avaliar="${i.ongId}" data-ong="${UI.esc(i.ongNome)}" class="px-3 py-2 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-xl flex items-center gap-1"><i class="ph-fill ph-star"></i> Avaliar</button>
+      <button data-prestacao="${i.id}" data-ong="${UI.esc(i.ongNome)}" class="px-3 py-2 bg-white border border-gray-200 text-textGrey hover:border-primary hover:text-primary font-bold text-sm rounded-xl">Prestação</button>
+      <button data-chat="${i.id}" data-ong="${UI.esc(i.ongNome)}" data-ongid="${i.ongId}" data-concluido="1" class="px-3 py-2 bg-white border border-gray-200 text-textGrey hover:border-primary hover:text-primary font-bold text-sm rounded-xl">Histórico</button>`;
+    else if (i.status === 'RECUSADO') acoes = `
+      <button data-redemo="${i.necessidadeId}" class="px-3 py-2 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-xl flex items-center gap-1"><i class="ph ph-arrow-counter-clockwise"></i> Demonstrar novamente</button>`;
+    return `<div class="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
       <div class="flex-1 min-w-0">
-        <p class="font-montserrat font-bold text-textDark text-lg leading-tight">${UI.esc(i.necessidadeTitulo || 'Doação')}</p>
-        <p class="text-sm text-textGrey">para <span class="font-semibold text-textDark">${UI.esc(i.ongNome)}</span></p>
+        <p class="font-bold text-textDark leading-tight">${UI.esc(i.necessidadeTitulo || 'Doação')}</p>
         <div class="flex items-center gap-2 mt-1 text-xs text-textGrey">
           <span class="px-2.5 py-1 rounded-full font-bold ${badge}">${rotulo}</span>
-          ${i.diasEsperando ? `<span><i class="ph ph-clock"></i> ${i.diasEsperando} dia(s) esperando</span>` : ''}
+          ${i.diasEsperando ? `<span><i class="ph ph-clock"></i> ${i.diasEsperando} dia(s)</span>` : ''}
         </div>
       </div>
-      <div class="flex gap-2 flex-shrink-0">
-        <button data-chat="${i.id}" data-ong="${UI.esc(i.ongNome)}" ${i.bloqueadoPelaOng ? 'disabled' : ''}
-          class="px-4 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-white font-bold text-sm rounded-xl flex items-center gap-2">
-          <i class="ph-fill ph-chat-circle-text"></i> Conversar</button>
-        ${i.status === 'ACEITO' ? `<button data-concluir="${i.id}" class="px-4 py-2.5 bg-white border border-primary text-primary font-bold text-sm rounded-xl hover:bg-primary-light">Concluir</button>` : ''}
-      </div>
+      <div class="flex gap-2 flex-shrink-0 flex-wrap">${acoes}</div>
     </div>`;
   }
   async function concluirMatch(id) {
+    if (!confirm('Confirmar que esta doação foi concluída?')) return;
     try { await API.concluirInteresse(Number(id)); UI.toast('Doação concluída! 🎉', 'ok'); state.__matchesDirty = true; viewMatches(); }
     catch (e) { UI.toast(e.message, 'erro'); }
   }
+  async function reDemonstrarMatch(necId) {
+    try { await API.demonstrarInteresse(Number(necId)); UI.toast('Interesse reenviado!', 'ok'); state.__matchesDirty = true; viewMatches(); }
+    catch (e) { UI.toast(e.message, 'erro'); }
+  }
+  async function abrirPrestacoes(interesseId, ongNome) {
+    abrirModal(carregando('Carregando…'), 'max-w-lg');
+    try {
+      const lista = await API.prestacoes(Number(interesseId));
+      $('#modal-card').innerHTML = `<div class="p-6">
+        <h3 class="text-xl font-montserrat font-bold text-textDark mb-4">Prestação de contas · ${UI.esc(ongNome)}</h3>
+        ${(lista && lista.length) ? `<div class="space-y-3">${lista.map((pr) => `<div class="p-4 bg-background rounded-2xl">
+          <div class="flex items-center justify-between"><p class="font-bold text-textDark">${UI.esc(pr.titulo || 'Prestação')}</p><span class="text-xs text-textGrey">${UI.dataCurta(pr.dataCriacao)}</span></div>
+          ${pr.descricao ? `<p class="text-sm text-textGrey mt-1">${UI.esc(pr.descricao)}</p>` : ''}
+          ${(pr.fotos && pr.fotos.length) ? `<div class="flex gap-2 mt-2 overflow-x-auto no-scrollbar">${pr.fotos.map((f) => `<img src="${UI.fotoSrc(f)}" data-ver-img="${UI.fotoSrc(f)}" class="w-24 h-24 rounded-lg object-cover cursor-pointer flex-shrink-0">`).join('')}</div>` : ''}
+        </div>`).join('')}</div>` : vazio('ph-receipt', 'Sem prestação ainda', 'A ONG ainda não publicou a prestação de contas desta doação.')}
+      </div>`;
+    } catch (e) { $('#modal-card').innerHTML = `<div class="p-6">${erroBox(e.message)}</div>`; }
+  }
 
-  // Chat (modal)
-  let chatPoll = null;
-  async function abrirChat(interesseId, ongNome) {
+  // =========================================================================
+  // CHAT (completo: foto, digitando, visto por último, reações, só-leitura)
+  // =========================================================================
+  const REACOES = { LIKE: '👍', LOVE: '❤️', LAUGH: '😂', WOW: '😮', SAD: '😢', PRAY: '🙏' };
+  let chatPoll = null, chatBloqueado = false, chatDigitou = 0;
+  function textoVisto(s) {
+    if (!s) return 'Chat da doação';
+    if (s.digitando) return 'digitando…';
+    if (s.online) return 'online';
+    const ep = s.ultimoVistoEpoch || s.ultimoVisto;
+    if (!ep) return 'Chat da doação';
+    const d = new Date(ep); const hoje = new Date();
+    const hm = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === hoje.toDateString()) return 'visto hoje às ' + hm;
+    const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1);
+    if (d.toDateString() === ontem.toDateString()) return 'visto ontem às ' + hm;
+    return 'visto em ' + d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' às ' + hm;
+  }
+  async function abrirChat(interesseId, ongNome, ongId, concluido) {
+    const iid = Number(interesseId);
+    chatBloqueado = false;
     abrirModal(`
       <div class="flex items-center gap-3 p-4 border-b border-gray-100">
-        ${UI.avatar(ongNome, 'w-10 h-10')}
-        <div class="flex-1 min-w-0"><p class="font-bold text-textDark truncate">${UI.esc(ongNome)}</p><p class="text-xs text-textGrey">Chat da doação</p></div>
+        ${ongId ? `<button data-perfil-ong="${ongId}" class="flex items-center gap-3 flex-1 min-w-0 text-left">` : '<div class="flex items-center gap-3 flex-1 min-w-0">'}
+          ${UI.avatar(ongNome, 'w-10 h-10')}
+          <div class="flex-1 min-w-0"><p class="font-bold text-textDark truncate">${UI.esc(ongNome)}</p><p id="chat-status" class="text-xs text-textGrey truncate">${concluido ? 'Histórico da conversa' : 'Chat da doação'}</p></div>
+        ${ongId ? '</button>' : '</div>'}
       </div>
-      <div id="chat-msgs" class="h-[50vh] overflow-y-auto p-4 space-y-2 bg-background"></div>
-      <form id="chat-form" class="p-3 border-t border-gray-100 flex gap-2">
-        <input id="chat-input" placeholder="Escreva uma mensagem…" autocomplete="off"
-          class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <div id="chat-msgs" class="h-[52vh] overflow-y-auto p-4 space-y-1 bg-background"></div>
+      ${concluido ? `<div class="p-4 text-center text-sm text-textGrey border-t border-gray-100"><i class="ph ph-check-circle text-primary"></i> Doação concluída — histórico somente leitura.</div>`
+        : `<div id="chat-bloqueio" class="hidden p-4 text-center text-sm text-red-600 border-t border-gray-100"><i class="ph ph-prohibit"></i> Você não pode enviar mensagens para esta ONG.</div>
+      <form id="chat-form" class="p-3 border-t border-gray-100 flex items-center gap-2">
+        <button type="button" id="chat-anexo-btn" class="w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-image text-xl"></i></button>
+        <input id="chat-anexo" type="file" accept="image/*" class="hidden">
+        <input id="chat-input" placeholder="Escreva uma mensagem…" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
         <button class="w-12 h-12 bg-primary hover:bg-primary-dark text-white rounded-2xl flex items-center justify-center flex-shrink-0"><i class="ph-fill ph-paper-plane-right text-xl"></i></button>
-      </form>`, 'max-w-lg', () => { if (chatPoll) clearInterval(chatPoll); chatPoll = null; });
+      </form>`}`, 'max-w-lg', () => { if (chatPoll) clearInterval(chatPoll); chatPoll = null; });
 
-    const iid = Number(interesseId);
     async function carregar() {
       try {
-        const msgs = await API.mensagens(iid);
-        const box = $('#chat-msgs');
-        if (!box) return;
-        const noFim = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+        const [msgs, st] = await Promise.all([API.mensagens(iid), concluido ? Promise.resolve(null) : API.statusChat(iid).catch(() => null)]);
+        const box = $('#chat-msgs'); if (!box) return;
+        const noFim = box.scrollTop + box.clientHeight >= box.scrollHeight - 60;
         box.innerHTML = msgs.length ? msgs.map(bolhaMsg).join('') : `<p class="text-center text-sm text-textGrey py-10">Envie a primeira mensagem 👋</p>`;
         if (noFim) box.scrollTop = box.scrollHeight;
-      } catch (e) { /* silencioso no poll */ }
+        const stEl = $('#chat-status'); if (stEl && st) stEl.textContent = textoVisto(st);
+      } catch (e) { /* silencioso */ }
     }
     await carregar();
-    $('#chat-msgs').scrollTop = $('#chat-msgs').scrollHeight;
-    chatPoll = setInterval(carregar, 4000);
+    const box0 = $('#chat-msgs'); if (box0) box0.scrollTop = box0.scrollHeight;
+    chatPoll = setInterval(carregar, 3000);
 
+    if (concluido) return;
+    // Envio de texto
     $('#chat-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const inp = $('#chat-input');
-      const texto = inp.value.trim();
-      if (!texto) return;
+      const inp = $('#chat-input'); const texto = inp.value.trim();
+      if (!texto || chatBloqueado) return;
       inp.value = '';
       try { await API.enviarMensagem(iid, texto); await carregar(); }
-      catch (err) { UI.toast(err.message, 'erro'); inp.value = texto; }
+      catch (err) { tratarEnvioErro(err, texto, inp); }
     });
+    // "Digitando" (throttle 2s)
+    $('#chat-input').addEventListener('input', () => {
+      const agora = Date.now();
+      if (agora - chatDigitou > 2000) { chatDigitou = agora; API.digitando(iid).catch(() => {}); }
+    });
+    // Anexo de foto
+    $('#chat-anexo-btn').addEventListener('click', () => $('#chat-anexo').click());
+    $('#chat-anexo').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; if (!f || chatBloqueado) return;
+      try {
+        const b64 = await arquivoParaBase64(f, 800, 0.8);
+        await API.enviarMensagem(iid, '', b64); await carregar();
+      } catch (err) { tratarEnvioErro(err); }
+      e.target.value = '';
+    });
+  }
+  function tratarEnvioErro(err, texto, inp) {
+    if (/bloque|403/i.test(err.message)) {
+      chatBloqueado = true;
+      const bl = $('#chat-bloqueio'), fm = $('#chat-form');
+      if (bl) bl.classList.remove('hidden'); if (fm) fm.classList.add('hidden');
+    } else { UI.toast(err.message, 'erro'); if (inp && texto) inp.value = texto; }
   }
   function bolhaMsg(m) {
     const meu = m.remetente === 'DOADOR';
-    return `<div class="flex ${meu ? 'justify-end' : 'justify-start'}">
-      <div class="max-w-[75%] px-4 py-2.5 rounded-2xl ${meu ? 'bg-primary text-white rounded-br-md' : 'bg-white text-textDark rounded-bl-md shadow-sm'}">
-        <p class="text-sm leading-snug">${UI.esc(m.conteudo)}</p>
-        <p class="text-[10px] ${meu ? 'text-white/70' : 'text-textGrey'} text-right mt-1">${UI.horaCurta(m.dataEnvio)}</p>
-      </div></div>`;
+    const img = m.anexoBase64 ? `<img src="${UI.fotoSrc(m.anexoBase64)}" data-ver-img="${UI.fotoSrc(m.anexoBase64)}" class="rounded-xl max-w-full mb-1 cursor-pointer" style="max-height:220px">` : '';
+    // Reações agregadas
+    const rc = {};
+    (m.reacoes || []).forEach((r) => { const e = REACOES[r.emoji] || r.emoji; rc[e] = (rc[e] || 0) + 1; });
+    const chips = Object.entries(rc).map(([e, n]) => `<span class="text-xs bg-white/90 text-textDark rounded-full px-1.5 py-0.5 shadow-sm">${e}${n > 1 ? ' ' + n : ''}</span>`).join('');
+    const check = meu ? `<i class="ph${m.lida ? '-fill' : ''} ph-checks text-[13px] ${m.lida ? 'text-sky-300' : 'text-white/70'}"></i>` : '';
+    return `<div class="group flex ${meu ? 'justify-end' : 'justify-start'} items-end gap-1">
+      ${!meu ? `<button data-reagir="${m.id}" class="opacity-0 group-hover:opacity-100 transition-opacity text-textGrey hover:text-primary mb-1"><i class="ph ph-smiley text-lg"></i></button>` : ''}
+      <div class="relative max-w-[75%] px-3 py-2 rounded-2xl ${meu ? 'bg-primary text-white rounded-br-md' : 'bg-white text-textDark rounded-bl-md shadow-sm'}">
+        ${img}
+        ${m.conteudo ? `<p class="text-sm leading-snug">${UI.esc(m.conteudo)}</p>` : ''}
+        <p class="text-[10px] ${meu ? 'text-white/70' : 'text-textGrey'} text-right mt-1 flex items-center justify-end gap-1">${UI.horaCurta(m.dataEnvio)} ${check}</p>
+        ${chips ? `<div class="absolute -bottom-2 ${meu ? 'left-2' : 'right-2'} flex gap-1">${chips}</div>` : ''}
+      </div>
+      ${meu ? `<button data-reagir="${m.id}" class="opacity-0 group-hover:opacity-100 transition-opacity text-textGrey hover:text-primary mb-1"><i class="ph ph-smiley text-lg"></i></button>` : ''}
+    </div>`;
+  }
+  function abrirReacao(mensagemId) {
+    abrirModal(`<div class="p-6 text-center">
+      <h3 class="font-bold text-textDark mb-4">Reagir</h3>
+      <div class="flex justify-center gap-3">${Object.entries(REACOES).map(([cod, em]) => `<button data-emoji="${cod}" class="text-3xl hover:scale-125 transition-transform">${em}</button>`).join('')}</div>
+    </div>`, 'max-w-xs');
+    $('#modal-card').querySelectorAll('[data-emoji]').forEach((b) => b.addEventListener('click', async () => {
+      try { await API.reagir(Number(mensagemId), b.dataset.emoji); fecharModal(); }
+      catch (e) { UI.toast(e.message, 'erro'); }
+    }));
   }
 
   // =========================================================================
@@ -1717,21 +1820,24 @@ const App = (() => {
   // =========================================================================
   function ligarCliques() {
     document.addEventListener('click', (e) => {
-      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img]');
+      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir]');
       if (!alvo) return;
       if (alvo.dataset.fav) { e.stopPropagation(); return toggleFav(alvo.dataset.fav, alvo); }
+      if (alvo.dataset.reagir) return abrirReacao(alvo.dataset.reagir);
       if (alvo.dataset.avaliar) return abrirAvaliar(alvo.dataset.avaliar, alvo.dataset.ong || 'ONG');
       if (alvo.dataset.freteOng) return abrirFrete(Number(alvo.dataset.freteOng));
       if (alvo.dataset.denunciar) return abrirDenuncia(alvo.dataset.denunciar, alvo.dataset.ong || 'ONG');
       if (alvo.dataset.shareOng) return compartilharOng(alvo.dataset.shareOng);
       if (alvo.dataset.verImg) return verImagem(alvo.dataset.verImg);
+      if (alvo.dataset.redemo) return reDemonstrarMatch(alvo.dataset.redemo);
+      if (alvo.dataset.prestacao) return abrirPrestacoes(alvo.dataset.prestacao, alvo.dataset.ong || 'ONG');
       if (alvo.dataset.notif) return tocarNotif(alvo.dataset.notif);
       if (alvo.dataset.perfilOng) return abrirPerfilOng(Number(alvo.dataset.perfilOng));
       if (alvo.dataset.rota) return irPara(alvo.dataset.rota);
       if (alvo.dataset.aba) { matches.aba = alvo.dataset.aba; return pintarMatches(); }
       if (alvo.dataset.necessidade) return abrirNecessidade(Number(alvo.dataset.necessidade));
       if (alvo.dataset.interesse) return demonstrarInteresse(alvo.dataset.interesse, alvo);
-      if (alvo.dataset.chat) return abrirChat(alvo.dataset.chat, alvo.dataset.ong || 'ONG');
+      if (alvo.dataset.chat) return abrirChat(alvo.dataset.chat, alvo.dataset.ong || 'ONG', alvo.dataset.ongid ? Number(alvo.dataset.ongid) : null, alvo.dataset.concluido === '1');
       if (alvo.dataset.concluir) return concluirMatch(alvo.dataset.concluir);
       if (alvo.dataset.pix) return abrirPix(Number(alvo.dataset.pix));
     });
