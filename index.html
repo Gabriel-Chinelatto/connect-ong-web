@@ -4,17 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Connect ONG - Conectando quem quer ajudar a quem precisa." />
-    <title>Connect ONG — Impacto Real</title>
+    <title>Connect ONG — Doe de verdade</title>
 
-    <!-- Google Fonts: Inter (Corpo), Montserrat (Títulos), Permanent Marker (Brush) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Montserrat:wght@500;700;800;900&family=Permanent+Marker&display=swap" rel="stylesheet" />
-    
-    <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-
-    <!-- Configuração do Tailwind CSS (Agora com a paleta exata da Connect ONG) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -23,565 +18,190 @@
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
                         montserrat: ['Montserrat', 'sans-serif'],
-                        brush: ['"Permanent Marker"', 'cursive'], 
+                        brush: ['"Permanent Marker"', 'cursive'],
                     },
                     colors: {
-                        primary: {
-                            DEFAULT: '#008542', // Verde da Logo Connect ONG
-                            dark: '#006331',    
-                            light: '#e6f2ec',   
-                        },
-                        accent: {
-                            DEFAULT: '#ff7b00', // Laranja do bonequinho da Logo (Para botões de Doação)
-                            dark: '#cc6200',
-                            light: '#fff2e5',
-                        },
+                        primary: { DEFAULT: '#008542', dark: '#006331', light: '#e6f2ec' },
+                        accent:  { DEFAULT: '#ff7b00', dark: '#cc6200', light: '#fff2e5' },
                         surface: '#ffffff',
                         background: '#f4f7f5',
                         textDark: '#111827',
                         textGrey: '#4b5563',
                     },
                     boxShadow: {
-                        'premium': '0 10px 40px -10px rgba(0,0,0,0.08)',
-                        'card': '0 4px 20px -2px rgba(0,133,66,0.08)',
+                        premium: '0 10px 40px -10px rgba(0,0,0,0.08)',
+                        card: '0 4px 20px -2px rgba(0,133,66,0.08)',
                     }
                 }
             }
         }
     </script>
-
-    <style>
-        /* Animações Customizadas */
-        .fade-in { animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        .slide-up { animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Blob Animado para o Login */
-        .blob-shape {
-            animation: morph 8s ease-in-out infinite;
-            border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-            transition: all 1s ease-in-out;
-        }
-        @keyframes morph {
-            0% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
-            50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
-            100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
-        }
-
-        /* Scrollbar Premium */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #008542; }
-    </style>
+    <link rel="stylesheet" href="css/styles.css" />
 </head>
-<body class="bg-background text-textDark font-sans antialiased overflow-hidden h-screen w-screen">
+<body class="bg-background text-textDark font-sans antialiased h-screen w-screen overflow-hidden">
 
-    <!-- ========================================================================= -->
-    <!-- TELA 1: LOGIN (Connect ONG)                                               -->
-    <!-- ========================================================================= -->
-    <main id="view-login" class="flex h-full w-full absolute inset-0 z-50 bg-white transition-opacity duration-700">
-        
-        <!-- Lado Esquerdo -->
+    <!-- Marca (SVG inline, sem depender de arquivo externo) -->
+    <template id="tpl-logo">
+        <svg viewBox="0 0 48 48" fill="none" class="w-full h-full">
+            <circle cx="24" cy="24" r="22" fill="#008542"/>
+            <circle cx="18" cy="20" r="5" fill="#fff"/>
+            <circle cx="30" cy="20" r="5" fill="#ff7b00"/>
+            <path d="M10 36c2-6 6-9 8-9s3 3 6 3 4-3 6-3 6 3 8 9" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none"/>
+        </svg>
+    </template>
+
+    <!-- ===================== LOGIN / CADASTRO ===================== -->
+    <main id="view-login" class="flex h-full w-full absolute inset-0 z-50 bg-white transition-opacity duration-500">
+        <!-- Painel esquerdo (marketing) -->
         <section class="hidden lg:flex flex-col justify-between w-1/2 bg-[#0a1118] p-16 relative overflow-hidden">
-            <!-- Decoração de Fundo com as cores da ONG -->
             <div class="absolute -top-20 -left-20 w-[500px] h-[500px] bg-primary/30 blob-shape blur-3xl opacity-50"></div>
-            <div class="absolute bottom-0 right-0 w-[600px] h-[600px] bg-accent/20 blob-shape blur-3xl opacity-50" style="animation-delay: 2s;"></div>
+            <div class="absolute bottom-0 right-0 w-[600px] h-[600px] bg-accent/20 blob-shape blur-3xl opacity-50" style="animation-delay:2s"></div>
 
-            <!-- LOGO EM EVIDÊNCIA NO LOGIN -->
             <div class="relative z-10 slide-up flex items-center gap-4">
-                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center p-1.5 shadow-xl border-2 border-white/10">
-                    <!-- Para puxar sua logo, certifique-se de salvar ela como "logo.png" na mesma pasta -->
-                    <img src="logo.png" alt="Connect ONG" class="w-full h-full object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                    <!-- Ícone fallback caso a imagem não exista -->
-                    <i class="ph-fill ph-users-three text-3xl text-primary hidden"></i>
-                </div>
-                <h1 class="text-3xl font-montserrat font-black tracking-tighter text-white drop-shadow-md">
-                    Connect ONG
-                </h1>
+                <div class="logo-slot w-16 h-16"></div>
+                <h1 class="text-3xl font-montserrat font-black tracking-tighter text-white">Connect ONG</h1>
             </div>
 
-            <div class="relative z-10 slide-up mt-6" style="animation-delay: 0.2s;">
+            <div class="relative z-10 slide-up mt-6" style="animation-delay:.2s">
                 <h2 class="text-[3.5rem] font-montserrat font-extrabold text-white leading-none tracking-tight mb-8">
                     Juntos, somos <br/>
                     <span class="relative inline-block mt-1">
-                        <!-- O Laranja da Logo aqui traz energia para a campanha -->
-                        <span class="text-[6.5rem] font-brush text-accent uppercase tracking-wide drop-shadow-xl relative z-10">
-                            MAIS FORTES
-                        </span>
-                        <!-- Traço verde da logo embaixo -->
+                        <span class="text-[6.5rem] font-brush text-accent uppercase tracking-wide relative z-10">MAIS FORTES</span>
                         <svg class="absolute -bottom-1 left-0 w-full h-5 text-primary opacity-90 z-0" viewBox="0 0 300 12" fill="none" preserveAspectRatio="none">
-                            <path d="M3 9C80 3 180 3 297 8" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3));"/>
+                            <path d="M3 9C80 3 180 3 297 8" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
                         </svg>
                     </span>
                 </h2>
-                
-                <div class="space-y-6">
-                    <p class="text-xl font-montserrat font-bold text-white max-w-lg leading-relaxed tracking-wide">
-                        Nosso objetivo é transformar a realidade local e a comunidade, 
-                        <span class="relative inline-block text-white">
-                            para todos.
-                            <svg class="absolute -bottom-2 left-0 w-full h-2 text-primary" viewBox="0 0 100 10" preserveAspectRatio="none" fill="none">
-                                <path d="M0 5 Q 50 8 100 4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-                            </svg>
-                        </span>
-                    </p>
-                    <p class="text-md text-gray-300 max-w-md leading-relaxed font-medium">
-                        Ao se juntar à nossa rede, você nos ajuda a continuar esse trabalho, alcançar nossos objetivos e transformar vidas, com acesso a uma rede exclusiva de impacto social.
-                    </p>
-                </div>
+                <p class="text-xl font-montserrat font-bold text-white max-w-lg leading-relaxed mb-4">
+                    Doe itens e dinheiro para ONGs verificadas — e acompanhe o impacto real da sua ajuda.
+                </p>
+                <p class="text-md text-gray-300 max-w-md leading-relaxed font-medium">
+                    Encontre necessidades perto de você, converse direto com a instituição e faça sua doação chegar a quem precisa.
+                </p>
             </div>
 
-            <div class="relative z-10 slide-up flex items-center gap-4 mt-12" style="animation-delay: 0.4s;">
-                <div class="flex -space-x-3">
-                    <img src="https://i.pravatar.cc/100?img=1" alt="Doador" class="w-12 h-12 rounded-full border-2 border-[#0a1118] shadow-sm">
-                    <img src="https://i.pravatar.cc/100?img=2" alt="Doador" class="w-12 h-12 rounded-full border-2 border-[#0a1118] shadow-sm">
-                    <img src="https://i.pravatar.cc/100?img=3" alt="Doador" class="w-12 h-12 rounded-full border-2 border-[#0a1118] shadow-sm">
-                </div>
-                <p class="text-sm font-bold font-montserrat text-white uppercase tracking-wider">Junte-se a +12.000 voluntários</p>
+            <div id="login-stats" class="relative z-10 slide-up flex items-center gap-8 mt-12" style="animation-delay:.4s">
+                <!-- estatísticas públicas reais entram aqui -->
             </div>
         </section>
 
-        <!-- Lado Direito -->
-        <section class="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-16 fade-in">
+        <!-- Painel direito (formulários) -->
+        <section class="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-16 fade-in overflow-y-auto">
             <div class="w-full max-w-md">
-                
-                <!-- Logo visível apenas no Mobile -->
-                <div class="lg:hidden flex items-center justify-center gap-3 mb-10">
-                    <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center p-1 shadow-md border border-gray-100">
-                        <img src="logo.png" alt="Connect ONG" class="w-full h-full object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                        <i class="ph-fill ph-users-three text-2xl text-primary hidden"></i>
-                    </div>
-                    <h1 class="text-2xl font-montserrat font-black tracking-tighter text-primary">
-                        Connect ONG
-                    </h1>
+                <div class="lg:hidden flex items-center justify-center gap-3 mb-8">
+                    <div class="logo-slot w-12 h-12"></div>
+                    <h1 class="text-2xl font-montserrat font-black tracking-tighter text-primary">Connect ONG</h1>
                 </div>
 
-                <div class="mb-10 text-center lg:text-left">
-                    <h2 class="text-3xl font-montserrat font-bold tracking-tight text-textDark mb-2">Bem-vindo de volta</h2>
-                    <p class="text-textGrey font-medium">Insira seus dados para acessar o painel.</p>
-                </div>
-
-                <form id="form-login" class="space-y-6">
-                    <div>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="ph ph-envelope-simple text-xl text-textGrey"></i>
-                            </div>
-                            <input type="email" id="email" required placeholder="Endereço de E-mail" 
-                                class="w-full pl-12 pr-4 py-4 bg-background rounded-2xl font-medium text-textDark placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all">
-                        </div>
+                <!-- Form: LOGIN -->
+                <form id="form-login" class="space-y-5">
+                    <div class="mb-4 text-center lg:text-left">
+                        <h2 class="text-3xl font-montserrat font-bold tracking-tight text-textDark mb-2">Bem-vindo de volta</h2>
+                        <p class="text-textGrey font-medium">Entre para continuar ajudando.</p>
                     </div>
-                    <div>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="ph ph-lock-key text-xl text-textGrey"></i>
-                            </div>
-                            <input type="password" id="password" required placeholder="Sua senha" 
-                                class="w-full pl-12 pr-4 py-4 bg-background rounded-2xl font-medium text-textDark placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all">
-                        </div>
-                        <div class="flex justify-end mt-2">
-                            <a href="#" class="text-sm font-semibold text-primary hover:text-primary-dark transition-colors">Esqueceu a senha?</a>
-                        </div>
+                    <div class="relative">
+                        <i class="ph ph-envelope-simple text-xl text-textGrey absolute inset-y-0 left-4 flex items-center h-full"></i>
+                        <input type="email" name="email" required placeholder="E-mail" autocomplete="email"
+                            class="w-full pl-12 pr-4 py-4 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all">
                     </div>
-
-                    <!-- Botão Entrar usa o Laranja da Logo para destacar do fundo claro -->
-                    <button type="submit" 
-                        class="w-full py-4 px-6 bg-accent hover:bg-accent-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-accent/30 transition-all duration-300 transform hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-accent-light">
-                        Entrar na Plataforma
+                    <div class="relative">
+                        <i class="ph ph-lock-key text-xl text-textGrey absolute inset-y-0 left-4 flex items-center h-full"></i>
+                        <input type="password" name="senha" required placeholder="Senha" autocomplete="current-password"
+                            class="w-full pl-12 pr-4 py-4 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all">
+                    </div>
+                    <p data-erro class="text-sm font-semibold text-red-600 hidden"></p>
+                    <button type="submit"
+                        class="btn-submit w-full py-4 px-6 bg-accent hover:bg-accent-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-accent/30 transition-all transform hover:-translate-y-0.5 disabled:opacity-60">
+                        Entrar na plataforma
+                    </button>
+                    <p class="text-center text-textGrey text-sm font-medium">
+                        Ainda não tem conta?
+                        <button type="button" data-ir="cadastro" class="font-bold text-primary hover:text-primary-dark">Cadastre-se grátis</button>
+                    </p>
+                    <button type="button" data-demo class="w-full text-xs font-semibold text-textGrey/70 hover:text-primary flex items-center justify-center gap-1.5 mt-1">
+                        <i class="ph ph-play-circle"></i> Entrar com a conta de demonstração
                     </button>
                 </form>
 
-                <p class="mt-8 text-center text-textGrey text-sm font-medium">
-                    Ainda não tem uma conta? 
-                    <a href="#" class="font-bold text-primary hover:text-primary-dark transition-colors">Cadastre-se grátis</a>
-                </p>
+                <!-- Form: CADASTRO -->
+                <form id="form-cadastro" class="space-y-4" hidden>
+                    <div class="mb-2 text-center lg:text-left">
+                        <h2 class="text-3xl font-montserrat font-bold tracking-tight text-textDark mb-2">Criar conta</h2>
+                        <p class="text-textGrey font-medium">Leva menos de um minuto.</p>
+                    </div>
+                    <div class="relative">
+                        <i class="ph ph-user text-xl text-textGrey absolute inset-y-0 left-4 flex items-center h-full"></i>
+                        <input name="nome" required placeholder="Seu nome" class="w-full pl-12 pr-4 py-3.5 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white">
+                    </div>
+                    <div class="relative">
+                        <i class="ph ph-envelope-simple text-xl text-textGrey absolute inset-y-0 left-4 flex items-center h-full"></i>
+                        <input type="email" name="email" required placeholder="E-mail" class="w-full pl-12 pr-4 py-3.5 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input name="cidade" placeholder="Cidade" class="w-full px-4 py-3.5 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white">
+                        <input name="uf" maxlength="2" placeholder="UF" class="w-full px-4 py-3.5 bg-background rounded-2xl font-medium uppercase placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white">
+                    </div>
+                    <div class="relative">
+                        <i class="ph ph-lock-key text-xl text-textGrey absolute inset-y-0 left-4 flex items-center h-full"></i>
+                        <input type="password" name="senha" required minlength="6" placeholder="Senha (mín. 6)" class="w-full pl-12 pr-4 py-3.5 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white">
+                    </div>
+                    <p data-erro class="text-sm font-semibold text-red-600 hidden"></p>
+                    <button type="submit" class="btn-submit w-full py-4 px-6 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-primary/30 transition-all transform hover:-translate-y-0.5 disabled:opacity-60">
+                        Criar conta e entrar
+                    </button>
+                    <p class="text-center text-textGrey text-sm font-medium">
+                        Já tem conta?
+                        <button type="button" data-ir="login" class="font-bold text-primary hover:text-primary-dark">Fazer login</button>
+                    </p>
+                </form>
             </div>
         </section>
     </main>
 
-    <!-- ========================================================================= -->
-    <!-- TELA 2: DASHBOARD WEB (SPA)                                               -->
-    <!-- ========================================================================= -->
-    <div id="view-dashboard" class="hidden flex h-full w-full opacity-0 transition-opacity duration-700 bg-background">
-        
-        <!-- SIDEBAR NAVIGATION -->
-        <aside class="w-20 lg:w-64 bg-white border-r border-gray-100 flex flex-col justify-between h-full py-8 transition-all shadow-premium z-20">
+    <!-- ===================== APP (DOADOR) ===================== -->
+    <div id="view-app" class="flex h-full w-full bg-background" hidden>
+        <!-- Sidebar -->
+        <aside class="w-20 lg:w-64 bg-white border-r border-gray-100 flex flex-col justify-between h-full py-7 shadow-premium z-20">
             <div>
-                <!-- LOGO EM EVIDÊNCIA NA SIDEBAR -->
-                <div class="px-6 mb-12 flex items-center justify-center lg:justify-start gap-3">
-                    <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center p-0.5 shadow-sm border border-gray-100 flex-shrink-0">
-                        <img src="logo.png" alt="Connect ONG" class="w-full h-full object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                        <i class="ph-fill ph-users-three text-xl text-primary hidden"></i>
-                    </div>
+                <div class="px-6 mb-10 flex items-center justify-center lg:justify-start gap-3">
+                    <div class="logo-slot w-10 h-10 flex-shrink-0"></div>
                     <span class="hidden lg:block text-xl font-montserrat font-black tracking-tighter text-textDark leading-tight">
-                        Connect <br/><span class="text-primary text-lg">ONG</span>
+                        Connect <span class="text-primary">ONG</span>
                     </span>
                 </div>
-
-                <nav class="flex flex-col gap-2 px-4">
-                    <button id="nav-inicio" onclick="navigateTo('inicio', 'Painel de Impacto')" class="nav-btn w-full flex items-center gap-4 px-4 py-3 bg-primary-light/50 text-primary-dark rounded-xl font-bold transition-colors">
-                        <i class="ph-fill ph-house text-2xl"></i>
-                        <span class="hidden lg:block">Início</span>
-                    </button>
-                    <button id="nav-explorar" onclick="navigateTo('explorar', 'Explorar Campanhas')" class="nav-btn w-full flex items-center gap-4 px-4 py-3 text-textGrey hover:bg-gray-50 hover:text-primary rounded-xl font-medium transition-colors">
-                        <i class="ph ph-magnifying-glass text-2xl"></i>
-                        <span class="hidden lg:block">Explorar</span>
-                    </button>
-                    <button id="nav-pedidos" onclick="navigateTo('pedidos', 'Meus Pedidos')" class="nav-btn w-full flex items-center gap-4 px-4 py-3 text-textGrey hover:bg-gray-50 hover:text-primary rounded-xl font-medium transition-colors relative">
-                        <i class="ph ph-heart text-2xl"></i>
-                        <span class="hidden lg:block">Meus Pedidos</span>
-                        <span class="absolute right-4 top-1/2 -translate-y-1/2 w-2 h-2 bg-accent rounded-full"></span>
-                    </button>
-                </nav>
+                <nav id="nav" class="flex flex-col gap-1.5 px-4"></nav>
             </div>
-
             <div class="px-4">
-                <button class="w-full flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-200" onclick="window.location.reload()">
-                    <img src="https://i.pravatar.cc/150?img=32" alt="Perfil" class="w-10 h-10 rounded-full object-cover">
-                    <div class="hidden lg:flex flex-col items-start text-sm">
-                        <span class="font-bold text-textDark">Fundação Esperança</span>
-                        <span class="text-textGrey text-xs font-medium text-left flex items-center gap-1">ONG Verificada <i class="ph-fill ph-seal-check text-primary"></i></span>
+                <button id="btn-perfil" class="w-full flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-200">
+                    <span id="perfil-avatar"></span>
+                    <div class="hidden lg:flex flex-col items-start text-sm min-w-0">
+                        <span id="perfil-nome" class="font-bold text-textDark truncate max-w-[130px]"></span>
+                        <span class="text-textGrey text-xs font-medium flex items-center gap-1">Doador <i class="ph-fill ph-seal-check text-primary"></i></span>
                     </div>
+                    <i class="ph ph-sign-out text-lg text-textGrey ml-auto hidden lg:block"></i>
                 </button>
             </div>
         </aside>
 
-        <!-- ÁREA PRINCIPAL -->
+        <!-- Área principal -->
         <main class="flex-1 h-full overflow-y-auto relative">
-            
-            <header class="sticky top-0 z-30 backdrop-blur-md bg-background/90 px-8 py-6 flex items-center justify-between border-b border-gray-100/50">
-                <h2 id="header-title" class="text-2xl font-montserrat font-bold tracking-tight text-textDark transition-all">Painel de Impacto</h2>
-                
-                <div class="flex items-center gap-6">
-                    <!-- Botão Nova Doação usa o Laranja da Logo -->
-                    <button onclick="navigateTo('nova-doacao', 'Criar Nova Doação')" class="bg-accent hover:bg-accent-dark text-white px-6 py-2.5 rounded-full font-bold text-sm tracking-wide shadow-md shadow-accent/20 transition-transform transform hover:scale-105 flex items-center gap-2">
-                        <i class="ph-bold ph-plus"></i> NOVA DOAÇÃO
+            <header class="sticky top-0 z-30 backdrop-blur-md bg-background/90 px-6 lg:px-8 py-5 flex items-center justify-between border-b border-gray-100/60">
+                <h2 id="header-title" class="text-2xl font-montserrat font-bold tracking-tight text-textDark"></h2>
+                <div class="flex items-center gap-3">
+                    <button data-rota="dora" class="bg-primary hover:bg-primary-dark text-white px-4 lg:px-5 py-2.5 rounded-full font-bold text-sm shadow-md shadow-primary/20 transition-transform hover:scale-105 flex items-center gap-2">
+                        <i class="ph-fill ph-sparkle"></i> <span class="hidden sm:inline">Dora IA</span>
                     </button>
                 </div>
             </header>
-
-            <div class="px-8 py-10 max-w-screen-xl mx-auto relative">
-                
-                <!-- SEÇÃO 1: INÍCIO -->
-                <section id="sec-inicio" class="view-section block">
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-                        <!-- Featured Card -->
-                        <div class="lg:col-span-2 slide-up">
-                            <article onclick="navigateTo('explorar', 'Explorar Campanhas')" class="bg-white rounded-[24px] overflow-hidden shadow-card group cursor-pointer transition-transform duration-300 hover:-translate-y-1 border border-gray-100">
-                                <div class="relative h-[320px] overflow-hidden">
-                                    <img src="https://images.unsplash.com/photo-1610832958506-aa56368176cf?q=80&w=1200&auto=format&fit=crop" alt="Frutas" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">
-                                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
-                                    <div class="absolute top-6 left-6 px-4 py-1.5 bg-accent text-white rounded-full text-xs font-bold uppercase tracking-wider shadow-lg">Urgente</div>
-                                    <div class="absolute bottom-6 left-6 right-6 text-white">
-                                        <h3 class="text-3xl font-montserrat font-bold tracking-tight mb-3 drop-shadow-md">Frutas Frescas para Nutrição Infantil</h3>
-                                        <p class="text-white/90 text-sm max-w-xl line-clamp-2 font-medium">A boa nutrição ajudará as crianças a crescerem e se desenvolverem. Cada ajuda sua é um pacote de esperança em meio a tempos difíceis.</p>
-                                    </div>
-                                </div>
-                                <div class="p-6">
-                                    <div class="flex items-center justify-between mb-5">
-                                        <div class="flex items-center gap-3">
-                                            <img src="https://i.pravatar.cc/150?img=11" alt="Org" class="w-12 h-12 rounded-full border border-gray-200">
-                                            <div>
-                                                <p class="text-sm font-bold text-textDark">Maria Silva</p>
-                                                <p class="text-xs font-medium text-textGrey flex items-center gap-1">Doadora Verificada <i class="ph-fill ph-seal-check text-primary"></i></p>
-                                            </div>
-                                        </div>
-                                        <div class="text-right">
-                                            <p class="text-xs text-textGrey uppercase font-bold tracking-wider mb-1">Arrecadado</p>
-                                            <p class="text-2xl font-montserrat font-black text-primary">540 Kg</p>
-                                        </div>
-                                    </div>
-                                    <div class="w-full bg-gray-100 rounded-full h-3 mb-2 overflow-hidden relative">
-                                        <div class="bg-primary h-3 rounded-full relative overflow-hidden w-[80%]">
-                                            <div class="absolute inset-0 bg-white/20 w-full animate-[translateX_2s_infinite]"></div>
-                                        </div>
-                                    </div>
-                                    <div class="flex justify-between text-sm font-semibold text-textGrey">
-                                        <span>80% da meta atingida</span>
-                                        <span class="flex items-center gap-1"><i class="ph ph-clock"></i> 8 Horas restantes</span>
-                                    </div>
-                                </div>
-                            </article>
-                        </div>
-
-                        <!-- Side List -->
-                        <div class="space-y-4 slide-up flex flex-col h-full" style="animation-delay: 0.1s;">
-                            <h3 class="text-xl font-montserrat font-bold text-textDark flex items-center justify-between mb-2">
-                                Recentes
-                                <button onclick="navigateTo('explorar', 'Explorar Campanhas')" class="text-sm font-semibold text-primary hover:text-primary-dark transition-colors">Ver todos</button>
-                            </h3>
-                            
-                            <div class="bg-white p-5 rounded-2xl shadow-card border border-gray-100 hover:border-primary hover:shadow-md transition-all group cursor-pointer flex gap-4 items-center flex-1">
-                                <img src="https://images.unsplash.com/photo-1553456558-aff63285aaa1?q=80&w=400&auto=format&fit=crop" alt="Educação" class="w-20 h-20 rounded-xl object-cover shadow-sm">
-                                <div class="flex-1">
-                                    <h4 class="font-bold text-textDark text-md leading-tight mb-1 group-hover:text-primary transition-colors">Ajude Crianças a Terem Educação</h4>
-                                    <p class="text-sm font-medium text-textGrey mb-3"><i class="ph ph-box-box text-primary"></i> 45 Kits</p>
-                                    <div class="w-full bg-gray-100 rounded-full h-1.5"><div class="bg-primary h-1.5 rounded-full w-[45%]"></div></div>
-                                </div>
-                            </div>
-
-                            <div class="bg-white p-5 rounded-2xl shadow-card border border-gray-100 hover:border-primary hover:shadow-md transition-all group cursor-pointer flex gap-4 items-center flex-1">
-                                <img src="https://images.unsplash.com/photo-1532453288672-3a27e9be9efd?q=80&w=400&auto=format&fit=crop" alt="Roupas" class="w-20 h-20 rounded-xl object-cover shadow-sm">
-                                <div class="flex-1">
-                                    <h4 class="font-bold text-textDark text-md leading-tight mb-1 group-hover:text-primary transition-colors">Campanha do Agasalho Solidário</h4>
-                                    <p class="text-sm font-medium text-textGrey mb-3"><i class="ph ph-t-shirt text-primary"></i> 300 Peças</p>
-                                    <div class="w-full bg-gray-100 rounded-full h-1.5"><div class="bg-primary h-1.5 rounded-full w-[60%]"></div></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Mapa Nacional (Radares agora usam o Laranja da Connect ONG) -->
-                    <div class="bg-white rounded-[24px] p-8 lg:p-14 shadow-card border border-gray-100 flex flex-col md:flex-row items-center gap-16 slide-up" style="animation-delay: 0.2s;">
-                        <div class="w-full md:w-1/2 flex flex-col justify-center">
-                            <h3 class="text-4xl lg:text-5xl font-montserrat font-extrabold text-textDark leading-[1.1] mb-6 text-center md:text-left">
-                                Pessoas de todo o Brasil <span class="text-primary font-brush font-normal tracking-wide drop-shadow-sm">doam</span>, porque pessoas de todo o Brasil <span class="text-primary font-brush font-normal tracking-wide drop-shadow-sm">precisam</span>.
-                            </h3>
-                            <hr class="w-20 border-t-4 border-accent mb-8 mx-auto md:mx-0 rounded-full">
-                            <p class="text-textGrey text-lg font-medium leading-relaxed text-center md:text-left mb-8">
-                                A <strong class="text-textDark font-bold">Connect ONG</strong> torna simples e seguro doar para projetos locais confiáveis. Conectamos sua generosidade a esforços reais de recuperação e desenvolvimento.
-                            </p>
-                        </div>
-                        <div class="w-full md:w-1/2 relative flex justify-center items-center min-h-[400px]">
-                            <img src="https://raw.githubusercontent.com/djaiss/mapsicon/master/all/br/vector.svg" alt="Mapa Brasil" class="w-full max-w-[450px] opacity-[0.12] filter grayscale drop-shadow-lg pointer-events-none">
-                            
-                            <!-- Radares Laranjas -->
-                            <div class="absolute top-[25%] left-[38%] flex items-center justify-center group cursor-pointer"><div class="absolute w-12 h-12 bg-accent/30 rounded-full animate-ping"></div><div class="relative w-5 h-5 bg-white border-[5px] border-accent rounded-full shadow-md"></div></div>
-                            <div class="absolute top-[38%] right-[22%] flex items-center justify-center group cursor-pointer"><div class="absolute w-14 h-14 bg-accent/30 rounded-full animate-ping" style="animation-delay: 0.5s;"></div><div class="relative w-6 h-6 bg-white border-[5px] border-accent rounded-full shadow-md"></div></div>
-                            <div class="absolute bottom-[35%] right-[32%] flex items-center justify-center group cursor-pointer"><div class="absolute w-16 h-16 bg-accent/30 rounded-full animate-ping" style="animation-delay: 1s;"></div><div class="relative w-7 h-7 bg-white border-[6px] border-accent rounded-full shadow-xl"></div></div>
-                            <div class="absolute bottom-[12%] left-[45%] flex items-center justify-center group cursor-pointer"><div class="absolute w-10 h-10 bg-accent/30 rounded-full animate-ping" style="animation-delay: 1.5s;"></div><div class="relative w-5 h-5 bg-white border-[5px] border-accent rounded-full shadow-md"></div></div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- SEÇÃO 2: EXPLORAR CAMPANHAS -->
-                <section id="sec-explorar" class="view-section hidden">
-                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-10 slide-up">
-                        <div class="relative w-full md:w-1/2">
-                            <i class="ph ph-magnifying-glass absolute left-4 top-1/2 transform -translate-y-1/2 text-textGrey text-xl"></i>
-                            <input type="text" placeholder="Buscar doações, itens, ONGs..." class="w-full pl-12 pr-4 py-4 rounded-2xl border border-gray-200 shadow-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
-                        </div>
-                        <div class="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
-                            <button class="px-5 py-2.5 bg-textDark text-white rounded-full font-bold text-sm whitespace-nowrap">Todos</button>
-                            <button class="px-5 py-2.5 bg-white border border-gray-200 text-textGrey hover:border-primary hover:text-primary rounded-full font-bold text-sm transition-colors whitespace-nowrap">🍎 Alimentos</button>
-                            <button class="px-5 py-2.5 bg-white border border-gray-200 text-textGrey hover:border-primary hover:text-primary rounded-full font-bold text-sm transition-colors whitespace-nowrap">👕 Roupas</button>
-                            <button class="px-5 py-2.5 bg-white border border-gray-200 text-textGrey hover:border-primary hover:text-primary rounded-full font-bold text-sm transition-colors whitespace-nowrap">📚 Educação</button>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 slide-up" style="animation-delay: 0.1s;">
-                        <!-- Card 1 -->
-                        <div class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden hover:-translate-y-1 transition-transform group cursor-pointer">
-                            <img src="https://images.unsplash.com/photo-1593113512609-159048a946b9?q=80&w=600" class="w-full h-48 object-cover">
-                            <div class="p-5">
-                                <span class="text-xs font-bold text-primary bg-primary-light/50 px-3 py-1 rounded-full">Saúde</span>
-                                <h4 class="font-montserrat font-bold text-textDark text-lg mt-3 mb-2">Kits de Higiene Pessoal</h4>
-                                <p class="text-sm text-textGrey mb-4">Apoio a famílias desabrigadas na região metropolitana.</p>
-                                <div class="w-full bg-gray-100 rounded-full h-2 mb-1"><div class="bg-primary h-2 rounded-full w-[30%]"></div></div>
-                                <p class="text-xs text-textGrey font-semibold">30% da meta atingida</p>
-                            </div>
-                        </div>
-                        <!-- Card 2 -->
-                        <div class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden hover:-translate-y-1 transition-transform group cursor-pointer">
-                            <img src="https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=600" class="w-full h-48 object-cover">
-                            <div class="p-5">
-                                <span class="text-xs font-bold text-accent bg-accent-light px-3 py-1 rounded-full">Alimentos</span>
-                                <h4 class="font-montserrat font-bold text-textDark text-lg mt-3 mb-2">Cestas Básicas de Natal</h4>
-                                <p class="text-sm text-textGrey mb-4">Garantindo a ceia para 200 famílias cadastradas.</p>
-                                <div class="w-full bg-gray-100 rounded-full h-2 mb-1"><div class="bg-primary h-2 rounded-full w-[95%]"></div></div>
-                                <p class="text-xs text-textGrey font-semibold">95% da meta atingida</p>
-                            </div>
-                        </div>
-                        <!-- Card 3 -->
-                        <div class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden hover:-translate-y-1 transition-transform group cursor-pointer">
-                            <img src="https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=600" class="w-full h-48 object-cover">
-                            <div class="p-5">
-                                <span class="text-xs font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">Educação</span>
-                                <h4 class="font-montserrat font-bold text-textDark text-lg mt-3 mb-2">Material Escolar Solidário</h4>
-                                <p class="text-sm text-textGrey mb-4">Kits completos para crianças do ensino fundamental.</p>
-                                <div class="w-full bg-gray-100 rounded-full h-2 mb-1"><div class="bg-primary h-2 rounded-full w-[10%]"></div></div>
-                                <p class="text-xs text-textGrey font-semibold">Nova campanha</p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- SEÇÃO 3: MEUS PEDIDOS -->
-                <section id="sec-pedidos" class="view-section hidden max-w-4xl mx-auto">
-                    <div class="bg-white rounded-3xl shadow-card border border-gray-100 p-8 slide-up">
-                        <div class="flex items-center justify-between mb-8">
-                            <h3 class="text-xl font-montserrat font-bold text-textDark">Histórico de Movimentações</h3>
-                            <button class="text-sm font-semibold text-textGrey hover:text-primary flex items-center gap-2"><i class="ph ph-funnel"></i> Filtrar</button>
-                        </div>
-
-                        <div class="space-y-4">
-                            <!-- Pedido 1 -->
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 border border-gray-100 rounded-2xl hover:bg-gray-50 transition-colors">
-                                <div class="flex items-center gap-4 mb-4 sm:mb-0">
-                                    <div class="w-12 h-12 bg-primary-light/50 text-primary rounded-xl flex items-center justify-center">
-                                        <i class="ph-bold ph-package text-2xl"></i>
-                                    </div>
-                                    <div>
-                                        <p class="font-bold text-textDark text-lg">Cestas Básicas</p>
-                                        <p class="text-sm text-textGrey">Doado para: Instituição Criança Feliz</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-6">
-                                    <div class="text-right">
-                                        <p class="text-xs font-bold text-textGrey uppercase">Data</p>
-                                        <p class="text-sm font-medium">10 Nov 2023</p>
-                                    </div>
-                                    <span class="px-4 py-1.5 bg-green-100 text-green-700 font-bold text-xs rounded-full uppercase tracking-wide">Entregue</span>
-                                </div>
-                            </div>
-
-                            <!-- Pedido 2 -->
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-5 border border-gray-100 rounded-2xl hover:bg-gray-50 transition-colors">
-                                <div class="flex items-center gap-4 mb-4 sm:mb-0">
-                                    <div class="w-12 h-12 bg-accent-light text-accent-dark rounded-xl flex items-center justify-center">
-                                        <i class="ph-bold ph-t-shirt text-2xl"></i>
-                                    </div>
-                                    <div>
-                                        <p class="font-bold text-textDark text-lg">Roupas de Inverno</p>
-                                        <p class="text-sm text-textGrey">Solicitado por você (Aguardando)</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-6">
-                                    <div class="text-right">
-                                        <p class="text-xs font-bold text-textGrey uppercase">Data</p>
-                                        <p class="text-sm font-medium">Hoje</p>
-                                    </div>
-                                    <span class="px-4 py-1.5 bg-yellow-100 text-yellow-700 font-bold text-xs rounded-full uppercase tracking-wide">Pendente</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- SEÇÃO 4: NOVA DOAÇÃO -->
-                <section id="sec-nova-doacao" class="view-section hidden max-w-3xl mx-auto">
-                    <form class="bg-white rounded-3xl shadow-card border border-gray-100 p-8 lg:p-12 slide-up" onsubmit="event.preventDefault(); alert('Doação cadastrada com sucesso!'); navigateTo('inicio', 'Painel de Impacto');">
-                        
-                        <div class="mb-10 text-center">
-                            <div class="w-16 h-16 bg-primary-light/50 rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
-                                <i class="ph-fill ph-gift text-3xl"></i>
-                            </div>
-                            <h3 class="text-2xl font-montserrat font-bold text-textDark">O que você deseja doar?</h3>
-                            <p class="text-textGrey mt-2">Preencha as informações para criarmos sua campanha na plataforma.</p>
-                        </div>
-
-                        <div class="space-y-6">
-                            <div>
-                                <label class="block text-sm font-bold text-textDark mb-2">Título do Item/Campanha</label>
-                                <input type="text" required placeholder="Ex: Roupas de Frio (Tamanhos variados)" class="w-full p-4 bg-background border border-gray-200 rounded-xl text-textDark focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all">
-                            </div>
-
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label class="block text-sm font-bold text-textDark mb-2">Categoria</label>
-                                    <select class="w-full p-4 bg-background border border-gray-200 rounded-xl text-textDark focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all appearance-none cursor-pointer">
-                                        <option>Alimentos</option>
-                                        <option>Vestuário / Roupas</option>
-                                        <option>Educação / Material Escolar</option>
-                                        <option>Saúde / Higiene</option>
-                                        <option>Outros</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-textDark mb-2">Quantidade (Opcional)</label>
-                                    <input type="number" placeholder="Ex: 50" class="w-full p-4 bg-background border border-gray-200 rounded-xl text-textDark focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all">
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-bold text-textDark mb-2">Descrição / Estado de conservação</label>
-                                <textarea required rows="4" placeholder="Descreva os itens, tamanhos, prazos de validade ou detalhes importantes..." class="w-full p-4 bg-background border border-gray-200 rounded-xl text-textDark focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all resize-none"></textarea>
-                            </div>
-
-                            <div class="mt-4 border-2 border-dashed border-gray-300 rounded-2xl p-10 flex flex-col items-center justify-center text-center hover:bg-gray-50 transition-colors cursor-pointer group">
-                                <i class="ph ph-upload-simple text-4xl text-gray-400 group-hover:text-primary transition-colors mb-3"></i>
-                                <p class="text-sm font-bold text-textDark">Clique para enviar uma foto</p>
-                                <p class="text-xs text-textGrey mt-1">PNG, JPG ou WEBP (Max. 5MB)</p>
-                            </div>
-                        </div>
-
-                        <hr class="border-gray-100 my-8">
-
-                        <div class="flex justify-end gap-4">
-                            <button type="button" onclick="navigateTo('inicio', 'Painel de Impacto')" class="px-6 py-3.5 text-textGrey font-bold hover:bg-gray-100 rounded-xl transition-colors">Cancelar</button>
-                            <button type="submit" class="px-8 py-3.5 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold tracking-wider rounded-xl shadow-lg shadow-primary/30 transition-transform transform hover:-translate-y-1">PUBLICAR DOAÇÃO</button>
-                        </div>
-                    </form>
-                </section>
-
-            </div>
+            <div id="page-root" class="px-6 lg:px-8 py-8 max-w-screen-xl mx-auto"></div>
         </main>
     </div>
 
-    <!-- Script SPA -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const formLogin = document.getElementById('form-login');
-            const viewLogin = document.getElementById('view-login');
-            const viewDashboard = document.getElementById('view-dashboard');
+    <!-- Camada de diálogo (detalhe/PIX/etc.) -->
+    <div id="modal-root"></div>
 
-            formLogin.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const btn = formLogin.querySelector('button[type="submit"]');
-                btn.innerHTML = '<i class="ph ph-spinner animate-spin text-xl"></i>';
-                btn.disabled = true;
-
-                setTimeout(() => {
-                    viewLogin.style.opacity = '0';
-                    setTimeout(() => {
-                        viewLogin.classList.add('hidden');
-                        viewDashboard.classList.remove('hidden');
-                        void viewDashboard.offsetWidth; 
-                        viewDashboard.style.opacity = '1';
-                    }, 700);
-                }, 1000);
-            });
-        });
-
-        function navigateTo(targetId, pageTitle) {
-            const sections = document.querySelectorAll('.view-section');
-            sections.forEach(sec => {
-                sec.classList.add('hidden');
-                sec.classList.remove('fade-in'); 
-            });
-
-            const navButtons = document.querySelectorAll('.nav-btn');
-            navButtons.forEach(btn => {
-                btn.classList.remove('bg-primary-light/50', 'text-primary-dark', 'font-bold');
-                btn.classList.add('text-textGrey', 'font-medium');
-            });
-
-            const targetSection = document.getElementById('sec-' + targetId);
-            if (targetSection) {
-                targetSection.classList.remove('hidden');
-                void targetSection.offsetWidth; 
-                targetSection.classList.add('fade-in'); 
-            }
-
-            const activeBtn = document.getElementById('nav-' + targetId);
-            if (activeBtn) {
-                activeBtn.classList.remove('text-textGrey', 'font-medium');
-                activeBtn.classList.add('bg-primary-light/50', 'text-primary-dark', 'font-bold');
-            }
-
-            if (pageTitle) {
-                document.getElementById('header-title').innerText = pageTitle;
-            }
-        }
-    </script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>
