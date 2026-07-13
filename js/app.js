@@ -703,58 +703,162 @@ const App = (() => {
   }
 
   // =========================================================================
-  // TELA: DORA (assistente IA)
+  // TELA: DORA (assistente IA) — com histórico de conversas (localStorage)
+  // Espelha conversas_dora_service.dart do mobile.
   // =========================================================================
-  const dora = { historico: [] };
+  const DORA_KEY = 'dora_conversas_v2';
+  const DoraStore = {
+    _ler() { try { return JSON.parse(localStorage.getItem(DORA_KEY) || '[]'); } catch { return []; } },
+    _gravar(l) { localStorage.setItem(DORA_KEY, JSON.stringify(l)); },
+    listar() { return this._ler().sort((a, b) => (b.fixado - a.fixado) || (b.atualizadoEm - a.atualizadoEm)); },
+    obter(id) { return this._ler().find((c) => c.id === id) || null; },
+    salvar(conv) {
+      if (!conv.mensagens.some((m) => m.papel === 'user')) return; // não grava sem msg do usuário
+      const l = this._ler(); const i = l.findIndex((c) => c.id === conv.id);
+      conv.atualizadoEm = (l[i] ? l[i].atualizadoEm : 0) + 1; // contador monotônico (Date.now indisponível)
+      if (!conv.titulo) conv.titulo = this.tituloDerivado(conv.mensagens);
+      if (i >= 0) l[i] = conv; else l.push(conv);
+      this._gravar(l);
+    },
+    excluir(id) { this._gravar(this._ler().filter((c) => c.id !== id)); },
+    renomear(id, titulo) { const l = this._ler(); const c = l.find((x) => x.id === id); if (c) { c.titulo = titulo; this._gravar(l); } },
+    fixar(id) { const l = this._ler(); const c = l.find((x) => x.id === id); if (c) { c.fixado = !c.fixado; this._gravar(l); } },
+    tituloDerivado(msgs) { const m = msgs.find((x) => x.papel === 'user'); const t = (m && m.texto || 'Conversa').trim(); return t.length > 40 ? t.slice(0, 40) + '…' : t; },
+  };
+  let doraSeq = 1;
+  const dora = { conv: null, anexo: null, historico: [] };
+  function doraNova() { dora.conv = { id: 'c' + (doraSeq++) + '_' + (DoraStore.listar().length), titulo: '', fixado: false, atualizadoEm: 0, mensagens: [] }; dora.anexo = null; }
+
   async function viewDora() {
-    const u = API.usuario();
+    if (!dora.conv) { const ult = DoraStore.listar()[0]; if (ult) dora.conv = ult; else doraNova(); }
     root().innerHTML = `
-      <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-card border border-gray-100 flex flex-col" style="height:calc(100vh - 190px)">
-        <div class="flex items-center gap-3 p-5 border-b border-gray-100">
-          <div class="w-11 h-11 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-accent"><i class="ph-fill ph-sparkle text-2xl"></i></div>
-          <div><p class="font-montserrat font-bold text-textDark">Dora</p><p class="text-xs text-textGrey">Sua assistente de doações • IA</p></div>
+      <div class="flex gap-4" style="height:calc(100vh - 170px)">
+        <aside class="hidden md:flex w-64 flex-col bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden flex-shrink-0">
+          <div class="p-3 border-b border-gray-100"><button id="dora-nova" class="w-full py-2.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2"><i class="ph ph-plus"></i> Nova conversa</button></div>
+          <div id="dora-lista" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+        </aside>
+        <div class="flex-1 flex flex-col bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden min-w-0">
+          <div class="flex items-center gap-3 p-4 border-b border-gray-100">
+            <button id="dora-menu" class="md:hidden w-9 h-9 rounded-lg bg-background flex items-center justify-center"><i class="ph ph-list text-lg"></i></button>
+            <div class="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-accent flex-shrink-0"><i class="ph-fill ph-sparkle text-xl"></i></div>
+            <div class="flex-1 min-w-0"><p class="font-montserrat font-bold text-textDark truncate">Dora</p><p class="text-xs text-textGrey">Assistente de doações • IA</p></div>
+            <button id="dora-nova2" class="md:hidden w-9 h-9 rounded-lg bg-background flex items-center justify-center"><i class="ph ph-plus text-lg"></i></button>
+          </div>
+          <div id="dora-msgs" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+          <div id="dora-preview" class="hidden px-4 pt-2"></div>
+          <form id="dora-form" class="p-3 border-t border-gray-100 flex items-center gap-2">
+            <button type="button" id="dora-anexo-btn" class="w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-image text-xl"></i></button>
+            <input id="dora-anexo" type="file" accept="image/*" class="hidden">
+            <input id="dora-input" placeholder="Pergunte à Dora o que doar, para quem…" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
+            <button class="w-12 h-12 bg-primary hover:bg-primary-dark text-white rounded-2xl flex items-center justify-center flex-shrink-0"><i class="ph-fill ph-paper-plane-right text-xl"></i></button>
+          </form>
         </div>
-        <div id="dora-msgs" class="flex-1 overflow-y-auto p-5 space-y-3"></div>
-        <form id="dora-form" class="p-3 border-t border-gray-100 flex gap-2">
-          <input id="dora-input" placeholder="Pergunte à Dora o que doar, para quem…" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
-          <button class="w-12 h-12 bg-primary hover:bg-primary-dark text-white rounded-2xl flex items-center justify-center flex-shrink-0"><i class="ph-fill ph-paper-plane-right text-xl"></i></button>
-        </form>
       </div>`;
-    const box = $('#dora-msgs');
-    if (!dora.historico.length) {
-      box.innerHTML = doraBolha('assistente', `Oi, ${UI.esc((u?.nome || '').split(' ')[0] || '')}! Sou a Dora 🌱 Posso sugerir o que doar, achar ONGs perto de você ou tirar dúvidas. Como posso ajudar?`);
+    renderDoraLista();
+    renderDoraMsgs();
+    $('#dora-nova').addEventListener('click', () => { doraNova(); viewDora(); });
+    $('#dora-nova2').addEventListener('click', () => { doraNova(); viewDora(); });
+    $('#dora-menu').addEventListener('click', abrirDoraListaModal);
+    $('#dora-form').addEventListener('submit', enviarDora);
+    $('#dora-anexo-btn').addEventListener('click', () => $('#dora-anexo').click());
+    $('#dora-anexo').addEventListener('change', async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      dora.anexo = await arquivoParaBase64(f, 1024, 0.7);
+      const pv = $('#dora-preview'); pv.classList.remove('hidden');
+      pv.innerHTML = `<div class="inline-flex items-center gap-2 bg-background rounded-xl p-1.5"><img src="${UI.fotoSrc(dora.anexo)}" class="w-12 h-12 rounded-lg object-cover"><button type="button" id="dora-rm-anexo" class="text-textGrey hover:text-red-500 pr-1"><i class="ph ph-x"></i></button></div>`;
+      $('#dora-rm-anexo').addEventListener('click', () => { dora.anexo = null; pv.classList.add('hidden'); pv.innerHTML = ''; });
+      e.target.value = '';
+    });
+  }
+  function itemConversa(c) {
+    const ativo = dora.conv && c.id === dora.conv.id;
+    return `<div class="group flex items-center rounded-xl ${ativo ? 'bg-primary-light' : 'hover:bg-gray-50'}">
+      <button data-dora-abrir="${c.id}" class="flex-1 min-w-0 text-left px-3 py-2.5 flex items-center gap-2">
+        ${c.fixado ? '<i class="ph-fill ph-push-pin text-xs text-accent"></i>' : ''}
+        <span class="truncate text-sm font-semibold ${ativo ? 'text-primary-dark' : 'text-textDark'}">${UI.esc(c.titulo || 'Nova conversa')}</span>
+      </button>
+      <button data-dora-menu="${c.id}" class="opacity-0 group-hover:opacity-100 px-2 text-textGrey hover:text-textDark"><i class="ph ph-dots-three-vertical"></i></button>
+    </div>`;
+  }
+  function renderDoraLista() {
+    const el = $('#dora-lista'); if (!el) return;
+    const l = DoraStore.listar();
+    el.innerHTML = l.length ? l.map(itemConversa).join('') : '<p class="text-xs text-textGrey text-center p-4">Nenhuma conversa ainda.</p>';
+  }
+  function abrirDoraListaModal() {
+    const l = DoraStore.listar();
+    abrirModal(`<div class="p-4">
+      <div class="flex items-center justify-between mb-3"><h3 class="font-bold text-textDark">Conversas</h3><button id="dm-nova" class="text-sm font-bold text-primary">+ Nova</button></div>
+      <div class="space-y-1 max-h-[60vh] overflow-y-auto">${l.length ? l.map(itemConversa).join('') : '<p class="text-xs text-textGrey text-center p-4">Nenhuma conversa.</p>'}</div>
+    </div>`, 'max-w-xs');
+    $('#dm-nova').addEventListener('click', () => { doraNova(); fecharModal(); viewDora(); });
+  }
+  function doraMenuConversa(id) {
+    const c = DoraStore.obter(id); if (!c) return;
+    abrirModal(`<div class="p-4 space-y-1">
+      <button id="dmc-fixar" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-gray-50 font-semibold text-textDark flex items-center gap-2"><i class="ph ph-push-pin"></i> ${c.fixado ? 'Desafixar' : 'Fixar'}</button>
+      <button id="dmc-renomear" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-gray-50 font-semibold text-textDark flex items-center gap-2"><i class="ph ph-pencil-simple"></i> Renomear</button>
+      <button id="dmc-excluir" class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-red-50 font-semibold text-red-600 flex items-center gap-2"><i class="ph ph-trash"></i> Excluir</button>
+    </div>`, 'max-w-xs');
+    $('#dmc-fixar').addEventListener('click', () => { DoraStore.fixar(id); fecharModal(); viewDora(); });
+    $('#dmc-excluir').addEventListener('click', () => { DoraStore.excluir(id); if (dora.conv && dora.conv.id === id) dora.conv = null; fecharModal(); viewDora(); });
+    $('#dmc-renomear').addEventListener('click', () => {
+      const novo = prompt('Novo nome da conversa:', c.titulo || '');
+      if (novo != null && novo.trim()) { DoraStore.renomear(id, novo.trim()); if (dora.conv && dora.conv.id === id) dora.conv.titulo = novo.trim(); }
+      fecharModal(); viewDora();
+    });
+  }
+  function renderDoraMsgs() {
+    const box = $('#dora-msgs'); if (!box) return;
+    const u = API.usuario();
+    if (!dora.conv.mensagens.length) {
+      const chips = ['Tenho roupas para doar', 'ONGs perto de mim', 'Quero ajudar animais', 'Como funciona a doação?'];
+      box.innerHTML = doraBolha({ papel: 'assistente', texto: `Oi, ${UI.esc((u?.nome || '').split(' ')[0] || '')}! Sou a Dora 🌱 Posso sugerir o que doar, achar ONGs perto de você ou tirar dúvidas.` })
+        + `<div class="flex flex-wrap gap-2 mt-2">${chips.map((c) => `<button data-dora-chip="${UI.esc(c)}" class="px-3 py-2 bg-background hover:bg-primary-light rounded-full text-sm font-semibold text-textDark border border-gray-200">${c}</button>`).join('')}</div>`;
+      box.querySelectorAll('[data-dora-chip]').forEach((b) => b.addEventListener('click', () => { $('#dora-input').value = b.dataset.doraChip; $('#dora-form').requestSubmit(); }));
     } else {
-      box.innerHTML = dora.historico.map((m) => doraBolha(m.papel, UI.esc(m.texto))).join('');
+      box.innerHTML = dora.conv.mensagens.map(doraBolha).join('');
     }
     box.scrollTop = box.scrollHeight;
-    $('#dora-form').addEventListener('submit', enviarDora);
   }
-  function doraBolha(papel, htmlTexto) {
-    const meu = papel === 'usuario';
+  function doraBolha(m) {
+    const meu = m.papel === 'user';
+    const img = m.imagemBase64 ? `<img src="${UI.fotoSrc(m.imagemBase64)}" data-ver-img="${UI.fotoSrc(m.imagemBase64)}" class="rounded-xl max-w-[200px] mb-2 cursor-pointer">` : '';
+    const cards = (m.sugestoes && m.sugestoes.length) ? `<div class="mt-2 space-y-2">${m.sugestoes.map((s) => {
+      const attr = s.tipo === 'ONG' ? `data-perfil-ong="${s.id}"` : `data-necessidade="${s.id}"`;
+      const ic = s.tipo === 'ONG' ? 'ph-buildings' : 'ph-hand-heart';
+      return `<button ${attr} class="w-full text-left flex items-center gap-2 bg-white/90 hover:bg-white text-textDark rounded-xl p-2.5 border border-gray-200"><i class="ph-fill ${ic} text-primary text-lg"></i><span class="flex-1 min-w-0"><span class="block font-bold text-sm truncate">${UI.esc(s.titulo)}</span><span class="block text-xs text-textGrey truncate">${UI.esc(s.subtitulo || '')}</span></span><i class="ph ph-caret-right text-textGrey"></i></button>`;
+    }).join('')}</div>` : '';
+    const regras = m.modoRegras ? '<span class="inline-block mt-1 text-[10px] font-bold text-textGrey bg-gray-100 rounded-full px-2 py-0.5">Modo básico</span>' : '';
     return `<div class="flex ${meu ? 'justify-end' : 'justify-start'}">
-      <div class="max-w-[80%] px-4 py-3 rounded-2xl ${meu ? 'bg-primary text-white rounded-br-md' : 'bg-background text-textDark rounded-bl-md'}">
-        <p class="text-sm leading-relaxed whitespace-pre-line">${htmlTexto}</p></div></div>`;
+      <div class="max-w-[85%] px-4 py-3 rounded-2xl ${meu ? 'bg-primary text-white rounded-br-md' : 'bg-background text-textDark rounded-bl-md'}">
+        ${img}${m.texto ? `<p class="text-sm leading-relaxed whitespace-pre-line">${UI.esc(m.texto)}</p>` : ''}${cards}${regras}
+      </div></div>`;
   }
   async function enviarDora(e) {
     e.preventDefault();
     const inp = $('#dora-input');
     const texto = inp.value.trim();
-    if (!texto) return;
-    inp.value = '';
+    const anexo = dora.anexo;
+    if (!texto && !anexo) return;
+    inp.value = ''; dora.anexo = null;
+    const pv = $('#dora-preview'); if (pv) { pv.classList.add('hidden'); pv.innerHTML = ''; }
+    dora.conv.mensagens.push({ papel: 'user', texto: texto || (anexo ? 'O que você acha desta imagem?' : ''), imagemBase64: anexo });
+    renderDoraMsgs();
     const box = $('#dora-msgs');
-    box.insertAdjacentHTML('beforeend', doraBolha('usuario', UI.esc(texto)));
-    box.insertAdjacentHTML('beforeend', `<div id="dora-typing" class="flex justify-start"><div class="px-4 py-3 bg-background rounded-2xl rounded-bl-md text-textGrey"><i class="ph ph-circle-notch spin"></i> Dora está pensando…</div></div>`);
+    box.insertAdjacentHTML('beforeend', `<div id="dora-typing" class="flex justify-start"><div class="px-4 py-3 bg-background rounded-2xl rounded-bl-md text-textGrey"><i class="ph ph-circle-notch spin"></i> ${anexo ? 'Analisando a imagem…' : 'Dora está pensando…'}</div></div>`);
     box.scrollTop = box.scrollHeight;
     try {
-      const resp = await API.assistente(texto, dora.historico, API.usuario()?.cidade);
+      const hist = dora.conv.mensagens.slice(-12).map((m) => ({ papel: m.papel, texto: m.texto }));
+      const resp = await API.assistente(texto || 'Analise esta imagem.', hist, API.usuario()?.cidade, anexo);
       const txt = (resp && (resp.resposta || resp.mensagem)) || 'Desculpe, não consegui responder agora.';
-      dora.historico.push({ papel: 'usuario', texto }, { papel: 'assistente', texto: txt });
-      $('#dora-typing')?.remove();
-      box.insertAdjacentHTML('beforeend', doraBolha('assistente', UI.esc(txt)));
-      box.scrollTop = box.scrollHeight;
+      dora.conv.mensagens.push({ papel: 'assistente', texto: txt, sugestoes: resp && resp.sugestoes || [], modoRegras: resp && resp.modo === 'regras' });
+      DoraStore.salvar(dora.conv);
+      renderDoraLista(); renderDoraMsgs();
     } catch (err) {
       $('#dora-typing')?.remove();
-      box.insertAdjacentHTML('beforeend', doraBolha('assistente', UI.esc('Ops: ' + err.message)));
+      dora.conv.mensagens.push({ papel: 'assistente', texto: 'Ops: ' + err.message });
+      renderDoraMsgs();
     }
   }
 
@@ -1820,8 +1924,10 @@ const App = (() => {
   // =========================================================================
   function ligarCliques() {
     document.addEventListener('click', (e) => {
-      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir]');
+      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir],[data-dora-abrir],[data-dora-menu]');
       if (!alvo) return;
+      if (alvo.dataset.doraMenu) return doraMenuConversa(alvo.dataset.doraMenu);
+      if (alvo.dataset.doraAbrir) { const c = DoraStore.obter(alvo.dataset.doraAbrir); if (c) { dora.conv = c; fecharModal(); viewDora(); } return; }
       if (alvo.dataset.fav) { e.stopPropagation(); return toggleFav(alvo.dataset.fav, alvo); }
       if (alvo.dataset.reagir) return abrirReacao(alvo.dataset.reagir);
       if (alvo.dataset.avaliar) return abrirAvaliar(alvo.dataset.avaliar, alvo.dataset.ong || 'ONG');

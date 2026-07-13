@@ -140,8 +140,8 @@ const API = (() => {
     minhasDoacoesFinanceiras: () => get('/doacoes-financeiras?doadorId=' + usuario().id),
 
     // IA (Dora)
-    assistente: (mensagem, historico, cidade) =>
-      post('/assistente', { mensagem, historico: historico || [], cidade: cidade || null }),
+    assistente: (mensagem, historico, cidade, imagemBase64) =>
+      post('/assistente', { mensagem, historico: historico || [], cidade: cidade || null, imagemBase64: imagemBase64 || null }),
     sugestoes: () => post('/assistente/sugestoes', {}),
 
     // ONGs / perfil público
