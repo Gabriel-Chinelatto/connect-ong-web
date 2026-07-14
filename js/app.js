@@ -1274,7 +1274,10 @@ const App = (() => {
       const ongsAjudadas = new Set(inter.filter((i) => i.status === 'CONCLUIDO').map((i) => i.ongId)).size;
       const totalDinheiro = (fin || []).reduce((s, d) => s + (Number(d.valor) || 0), 0);
       root().innerHTML = `
-        <div class="flex justify-end mb-3 slide-up">
+        <div class="flex flex-wrap justify-end gap-2 mb-3 slide-up">
+          <button id="btn-cartao" class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-accent to-accent-dark text-white font-bold text-sm shadow-md shadow-accent/20 hover:-translate-y-0.5 transition-transform">
+            <i class="ph-fill ph-share-fat text-lg"></i> Meu cartão de impacto <span class="hidden sm:inline text-[10px] font-bold bg-white/25 rounded px-1.5 py-0.5 ml-1">novo</span>
+          </button>
           <button id="btn-relatorio" class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:border-primary hover:text-primary font-bold text-sm shadow-sm transition-colors">
             <i class="ph ph-printer text-lg"></i> Gerar relatório (PDF) <span class="hidden sm:inline text-[10px] font-bold text-textGrey bg-gray-100 rounded px-1.5 py-0.5 ml-1">web</span>
           </button>
@@ -1299,6 +1302,7 @@ const App = (() => {
           ${(conq || []).map(cardConquista).join('') || vazio('ph-medal', 'Sem conquistas ainda', 'Faça sua primeira doação!')}
         </div>`;
       const br = $('#btn-relatorio'); if (br) br.addEventListener('click', gerarRelatorio);
+      const bc = $('#btn-cartao'); if (bc) bc.addEventListener('click', gerarCartaoImpacto);
     } catch (e) { root().innerHTML = erroBox(e.message, 'impacto'); }
   }
   function statCard(icon, valor, label, cor, rota) {
@@ -2360,6 +2364,127 @@ const App = (() => {
       // Dá um tempo para o layout aplicar antes de imprimir.
       setTimeout(() => window.print(), 250);
     } catch (e) { UI.toast('Não foi possível gerar o relatório: ' + e.message, 'erro'); }
+  }
+
+  // =========================================================================
+  // ★ EXCLUSIVO DA WEB — "CONNECT ONG WRAPPED": cartão de impacto (canvas → PNG)
+  // Gera uma imagem bonita do impacto do doador, para baixar e compartilhar.
+  // =========================================================================
+  function rrect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  function carregarImagem(src) {
+    return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
+  }
+  async function desenharCartao(canvas, d, nome) {
+    const W = 1080, H = 1350; canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    // Fundo (gradiente da marca) + blobs decorativos
+    const g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#0a9a55'); g.addColorStop(0.55, '#008542'); g.addColorStop(1, '#024e30');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath(); ctx.arc(920, 180, 260, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(120, 1180, 300, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,123,0,0.16)';
+    ctx.beginPath(); ctx.arc(980, 1080, 200, 0, 7); ctx.fill();
+    // Cabeçalho: logo + marca
+    const logo = await carregarImagem('assets/img/logo.jpg');
+    ctx.save();
+    if (logo) { rrect(ctx, 80, 80, 92, 92, 22); ctx.clip(); ctx.drawImage(logo, 80, 80, 92, 92); }
+    else { ctx.fillStyle = '#fff'; rrect(ctx, 80, 80, 92, 92, 22); ctx.fill(); ctx.fillStyle = '#008542'; ctx.font = '800 52px Montserrat, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText('C', 126, 128); }
+    ctx.restore();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#fff'; ctx.font = '900 44px Montserrat, sans-serif'; ctx.fillText('Connect ONG', 192, 128);
+    ctx.fillStyle = '#ffd9b0'; ctx.font = '700 22px Inter, sans-serif';
+    ctx.fillText('M E U   I M P A C T O', 192, 158);
+    // Nome do doador
+    const primeiro = (nome || 'Doador').split(' ')[0];
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = '600 34px Inter, sans-serif'; ctx.fillText('A jornada de', 80, 300);
+    ctx.fillStyle = '#fff'; ctx.font = '900 92px Montserrat, sans-serif';
+    ctx.fillText(primeiro.length > 12 ? primeiro.slice(0, 12) + '…' : primeiro, 80, 390);
+    // Número herói (doações concluídas)
+    ctx.fillStyle = '#ff7b00'; ctx.font = '900 300px Montserrat, sans-serif'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(String(d.concl), 80, 720);
+    ctx.fillStyle = '#fff'; ctx.font = '800 46px Montserrat, sans-serif';
+    ctx.fillText(d.concl === 1 ? 'doação concluída' : 'doações concluídas', 84, 780);
+    // Grade de métricas (3 caixas)
+    const tiles = [
+      { v: d.ongsAjudadas, l: 'ONGs ajudadas' },
+      { v: d.totalDinheiro > 0 ? UI.brl(d.totalDinheiro).replace(/\s/g, ' ') : 'R$ 0', l: 'doados em $' },
+      { v: d.conquistas, l: 'conquistas' },
+    ];
+    const tw = 300, th = 200, gap = 30, x0 = 80, y0 = 850;
+    tiles.forEach((t, i) => {
+      const x = x0 + i * (tw + gap);
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; rrect(ctx, x, y0, tw, th, 28); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+      const s = String(t.v); ctx.font = `900 ${s.length > 6 ? 42 : 60}px Montserrat, sans-serif`;
+      ctx.fillText(s, x + tw / 2, y0 + 110);
+      ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '700 24px Inter, sans-serif';
+      ctx.fillText(t.l, x + tw / 2, y0 + 155);
+    });
+    ctx.textAlign = 'left';
+    // Frase
+    ctx.fillStyle = '#fff'; ctx.font = '800 40px Montserrat, sans-serif';
+    const frase = d.concl > 0 ? 'Juntos, transformamos vidas 💚' : 'Minha jornada de doações começou!';
+    ctx.fillText(frase, 80, 1180);
+    // Rodapé
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '600 26px Inter, sans-serif';
+    ctx.fillText('Faça parte você também • Connect ONG', 80, 1250);
+    return canvas;
+  }
+  async function gerarCartaoImpacto() {
+    UI.toast('Montando seu cartão…', 'info');
+    try {
+      const [inter, fin, conq] = await Promise.all([
+        API.meusInteresses().catch(() => []),
+        API.minhasDoacoesFinanceiras().catch(() => []),
+        API.conquistas().catch(() => []),
+      ]);
+      const concl = inter.filter((i) => i.status === 'CONCLUIDO');
+      const dados = {
+        concl: concl.length,
+        ongsAjudadas: new Set(concl.map((i) => i.ongId)).size,
+        totalDinheiro: (fin || []).reduce((s, d) => s + (Number(d.valor) || 0), 0),
+        conquistas: (conq || []).filter((c) => c.conquistada).length,
+      };
+      const canvas = document.createElement('canvas');
+      await desenharCartao(canvas, dados, (API.usuario() || {}).nome);
+      const dataUrl = canvas.toDataURL('image/png');
+      abrirModal(`
+        <div class="p-5">
+          <h3 class="text-lg font-montserrat font-bold text-textDark text-center mb-1">Seu cartão de impacto</h3>
+          <p class="text-xs text-textGrey text-center mb-4">Baixe e compartilhe nas suas redes 💚</p>
+          <img src="${dataUrl}" alt="Meu impacto" class="w-full rounded-2xl shadow-card border border-gray-100">
+          <div class="grid grid-cols-2 gap-2 mt-4">
+            <button id="cartao-baixar" class="py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl flex items-center justify-center gap-2"><i class="ph ph-download-simple text-lg"></i> Baixar</button>
+            <button id="cartao-share" class="py-3 bg-accent hover:bg-accent-dark text-white font-bold rounded-xl flex items-center justify-center gap-2"><i class="ph ph-share-network text-lg"></i> Compartilhar</button>
+          </div>
+        </div>`, 'max-w-sm');
+      const baixar = () => new Promise((res) => canvas.toBlob((b) => {
+        const url = URL.createObjectURL(b); const a = document.createElement('a');
+        a.href = url; a.download = 'meu-impacto-connectong.png'; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 4000); res(b);
+      }, 'image/png'));
+      $('#cartao-baixar').addEventListener('click', () => { baixar(); UI.toast('Imagem baixada!', 'ok'); });
+      const bs = $('#cartao-share');
+      bs.addEventListener('click', async () => {
+        try {
+          const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+          const file = new File([blob], 'meu-impacto-connectong.png', { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: 'Meu impacto no Connect ONG', text: 'Veja meu impacto no Connect ONG 💚' });
+          } else { baixar(); UI.toast('Compartilhamento não suportado — imagem baixada.', 'info'); }
+        } catch (e) { /* usuário cancelou */ }
+      });
+    } catch (e) { UI.toast('Não foi possível gerar o cartão: ' + e.message, 'erro'); }
   }
 
   // =========================================================================
