@@ -157,9 +157,9 @@ const App = (() => {
     return state.campanhas;
   }
   // Mapa necessidadeId -> interesse ({status,id}) do doador, para o botão 3 estados.
-  async function getInteresseMapa(force) {
+  async function getInteresseMapa(force, listaPre) {
     if (state.interMap && !force) return state.interMap;
-    const lista = await API.meusInteresses();
+    const lista = listaPre || await API.meusInteresses(); // aceita lista já carregada (evita fetch duplo)
     matches.dados = lista; // reaproveita na tela de Matches
     state.interMap = {};
     for (const i of lista) {
@@ -343,8 +343,12 @@ const App = (() => {
   }
 
   // Modal de detalhe + demonstrar interesse
-  function abrirNecessidade(id) {
-    const n = (state.necessidades || []).find((x) => x.id === id);
+  async function abrirNecessidade(id) {
+    // Pode ser chamada de contextos sem o feed em cache (perfil da ONG, Dora):
+    // procura no cache → no perfil da ONG aberto → e por fim carrega o feed.
+    let n = (state.necessidades || []).find((x) => x.id === id);
+    if (!n && state.perfilOngAtual) n = (state.perfilOngAtual.necessidades || []).find((x) => x.id === id);
+    if (!n) { try { const todas = await getNecessidades(); n = todas.find((x) => x.id === id); } catch {} }
     if (!n) { UI.toast('Necessidade não encontrada.', 'erro'); return; }
     const c = UI.cat(n.categoria);
     abrirModal(`
@@ -410,7 +414,7 @@ const App = (() => {
     root().innerHTML = carregando();
     try {
       if (!matches.dados || state.__matchesDirty) { matches.dados = await API.meusInteresses(); state.__matchesDirty = false; }
-      state.interMap = null; await getInteresseMapa().catch(() => {});
+      state.interMap = null; await getInteresseMapa(true, matches.dados).catch(() => {});
       pintarMatches();
     } catch (e) {
       root().innerHTML = erroBox(e.message, 'matches');
@@ -755,7 +759,7 @@ const App = (() => {
     tituloDerivado(msgs) { const m = msgs.find((x) => x.papel === 'user'); const t = (m && m.texto || 'Conversa').trim(); return t.length > 40 ? t.slice(0, 40) + '…' : t; },
   };
   let doraSeq = 1;
-  const dora = { conv: null, anexo: null, historico: [] };
+  const dora = { conv: null, anexo: null };
   function doraNova() { dora.conv = { id: 'c' + (doraSeq++) + '_' + (DoraStore.listar().length), titulo: '', fixado: false, atualizadoEm: 0, mensagens: [] }; dora.anexo = null; }
 
   async function viewDora() {
@@ -967,7 +971,7 @@ const App = (() => {
           <h3 class="text-2xl font-montserrat font-extrabold text-textDark mt-3">${UI.esc(p.nome)}</h3>
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-textGrey">
             <span><i class="ph ph-map-pin"></i> ${UI.esc(p.cidade || 'Brasil')}</span>
-            <span>${UI.estrelas(p.notaMedia)} ${(p.notaMedia || 0).toFixed(1)} (${p.totalAvaliacoes || 0})</span>
+            <span>${UI.estrelas(p.notaMedia)} ${(Number(p.notaMedia) || 0).toFixed(1)} (${p.totalAvaliacoes || 0})</span>
             ${p.nivelTransparencia ? `<span class="px-2.5 py-1 rounded-full text-xs font-bold ${nv.cls || 'bg-gray-100'}">${nv.emoji || ''} ${p.nivelTransparencia} · ${p.transparenciaScore || 0} pts</span>` : ''}
             ${p.diasNoTopo ? `<span class="text-accent font-bold">🔥 ${p.diasNoTopo}d no topo</span>` : ''}
           </div>
@@ -1107,7 +1111,9 @@ const App = (() => {
   }
 
   function verImagem(src) {
-    abrirModal(`<div class="bg-black flex items-center justify-center"><img src="${src}" class="max-h-[85vh] w-auto object-contain"></div>`, 'max-w-3xl');
+    // src vem de dataset (o browser já decodificou as entidades) — re-escapar
+    // ao reinjetar em innerHTML fecha o 2º salto do mesmo dado (anti-XSS).
+    abrirModal(`<div class="bg-black flex items-center justify-center"><img src="${UI.esc(src)}" class="max-h-[85vh] w-auto object-contain"></div>`, 'max-w-3xl');
   }
 
   function compartilharOng(ongId) {
@@ -1701,7 +1707,7 @@ const App = (() => {
   async function viewSobre() {
     let s = {};
     try { s = await API.estatisticas(); } catch {}
-    const stat = (v, l) => `<div class="text-center"><p class="text-3xl font-montserrat font-black text-primary">${v ?? '—'}</p><p class="text-xs text-textGrey font-semibold uppercase tracking-wide">${l}</p></div>`;
+    const stat = (v, l) => `<div class="text-center"><p class="text-3xl font-montserrat font-black text-primary">${v == null ? '—' : UI.esc(v)}</p><p class="text-xs text-textGrey font-semibold uppercase tracking-wide">${l}</p></div>`;
     root().innerHTML = `
       <div class="max-w-4xl mx-auto space-y-10 slide-up pb-6">
         <!-- Hero -->
@@ -1907,6 +1913,10 @@ const App = (() => {
   // =========================================================================
   let onFecharModal = null;
   function abrirModal(htmlInterno, maxW = 'max-w-md', aoFechar = null) {
+    // Se já havia um modal com callback de fechamento pendente (ex.: o poller do
+    // chat), executa-o AGORA — senão abrir um 2º modal por cima (reagir, abrir
+    // perfil da ONG pelo cabeçalho do chat) descartaria o DOM sem parar o timer.
+    if (onFecharModal) { try { onFecharModal(); } catch {} onFecharModal = null; }
     onFecharModal = aoFechar;
     $('#modal-root').innerHTML = `
       <div id="modal-bg" class="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
@@ -2099,7 +2109,7 @@ const App = (() => {
   // =========================================================================
   // ★ EXCLUSIVO DA WEB — MODO QUIOSQUE / APRESENTAÇÃO (tela cheia p/ a feira)
   // =========================================================================
-  let showcaseRefresh = null, showcaseRotaciona = null;
+  let showcaseRefresh = null;
   function showcaseEsc(e) { if (e.key === 'Escape') fecharShowcase(); }
   function animarNumero(el, alvo, dur = 1400) {
     const ini = performance.now(); const de = 0;
@@ -2112,6 +2122,7 @@ const App = (() => {
     requestAnimationFrame(passo);
   }
   async function abrirShowcase() {
+    if (showcaseRefresh) { clearInterval(showcaseRefresh); showcaseRefresh = null; } // evita 2º timer órfão
     const el = $('#view-showcase');
     el.hidden = false;
     el.innerHTML = `<div class="h-full flex items-center justify-center text-white/70"><i class="ph ph-circle-notch spin text-4xl"></i></div>`;
@@ -2121,7 +2132,6 @@ const App = (() => {
   }
   function fecharShowcase() {
     if (showcaseRefresh) { clearInterval(showcaseRefresh); showcaseRefresh = null; }
-    if (showcaseRotaciona) { clearInterval(showcaseRotaciona); showcaseRotaciona = null; }
     document.removeEventListener('keydown', showcaseEsc);
     const el = $('#view-showcase'); el.hidden = true; el.innerHTML = '';
   }
@@ -2395,6 +2405,11 @@ const App = (() => {
     }
     // Ao entrar nos Ajustes, re-sincroniza o rascunho com o que está salvo.
     if (rota === 'config' && state.rota !== 'config') cfgDraft = null;
+    // Ao sair do Mapa, destrói a instância Leaflet (libera handlers de resize/scroll).
+    if (state.rota === 'mapa' && rota !== 'mapa' && mapaState.instancia) {
+      try { mapaState.instancia.remove(); } catch {}
+      mapaState.instancia = null;
+    }
     state.rota = rota;
     $('#header-title').textContent = TITULOS[rota] || 'Connect ONG';
     marcarNav(rota);
@@ -2445,13 +2460,14 @@ const App = (() => {
   function mostrarLogin() {
     if (sinoPoll) { clearInterval(sinoPoll); sinoPoll = null; }
     fecharModal();
+    fecharShowcase(); // se um 401 disparou o logout com o Quiosque aberto, fecha o overlay + timer
     // Volta ao tema claro no login (as prefs são por-usuário).
     state.prefs = null; cfgDraft = null;
     document.body.classList.remove('tema-escuro', 'alto-contraste', 'fonte-dislexia', 'reduz-motion');
     document.documentElement.style.fontSize = '16px';
     // Limpa caches em memória para não vazar dados entre sessões.
     state.interMap = null; state.necessidades = null; state.campanhas = null;
-    state.ongs = null; state.favIds = null; matches.dados = null; dora.historico = [];
+    state.ongs = null; state.favIds = null; matches.dados = null;
     // Reseta os formulários (o botão ficava preso no spinner após um login).
     const fl = $('#form-login'), fc = $('#form-cadastro');
     fl.reset(); fc.reset();
@@ -2631,6 +2647,16 @@ const App = (() => {
         e.preventDefault();
         if (cmdk.aberto) fecharCmdk(); else abrirCmdk();
       }
+    });
+
+    // Voltar/Avançar do navegador: roteia pelo hash. Ignora o deep-link de ONG
+    // (#/ong/{id}, tratado no aoEntrar) e no-op quando a rota já é a atual (o
+    // próprio irPara escreve o hash → este handler dispara mas não re-renderiza).
+    window.addEventListener('hashchange', () => {
+      if ($('#view-app').hidden) return;
+      const alvo = (location.hash || '').replace(/^#\//, '').split('/')[0] || 'inicio';
+      if (alvo === 'ong') return;
+      if (alvo !== state.rota && VIEWS[alvo]) irPara(alvo);
     });
 
     window.addEventListener('co:deslogado', () => { UI.toast('Sessão expirada.', 'aviso'); mostrarLogin(); });

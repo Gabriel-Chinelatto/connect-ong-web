@@ -71,7 +71,14 @@ const UI = (() => {
   }
   function fotoSrc(base64) {
     if (!base64) return null;
-    return String(base64).startsWith('data:') ? base64 : 'data:image/jpeg;base64,' + base64;
+    const url = String(base64).startsWith('data:')
+      ? String(base64)
+      : 'data:image/jpeg;base64,' + base64;
+    // Anti-XFF: todo uso de fotoSrc cai dentro de src="..." ou url('...'). Um
+    // base64/data-URL legítimo não tem <>&"' — então escapar NÃO altera imagens
+    // válidas, mas neutraliza um campo malicioso (ex.: capaBase64 de uma ONG com
+    // aspas) que quebraria o atributo e injetaria um handler (XSS armazenado).
+    return esc(url);
   }
   function avatar(nome, tamanho = 'w-12 h-12 text-base', foto = null) {
     const src = fotoSrc(foto);

