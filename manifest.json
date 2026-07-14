@@ -1,0 +1,17 @@
+{
+  "name": "Connect ONG — Doe de verdade",
+  "short_name": "Connect ONG",
+  "description": "Conectando quem quer ajudar a quem precisa. Encontre necessidades, converse com ONGs e acompanhe o impacto real da sua doação.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a1118",
+  "theme_color": "#008542",
+  "lang": "pt-BR",
+  "categories": ["social", "lifestyle"],
+  "icons": [
+    { "src": "assets/img/logo.jpg", "sizes": "500x500", "type": "image/jpeg", "purpose": "any" },
+    { "src": "assets/img/logo.jpg", "sizes": "500x500", "type": "image/jpeg", "purpose": "maskable" }
+  ]
+}

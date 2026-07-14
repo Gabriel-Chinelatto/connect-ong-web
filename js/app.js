@@ -1776,7 +1776,8 @@ const App = (() => {
     { n: 17, t: 'Parcerias e meios de implementação', cor: '#19486a' },
   ];
   const KVERSOES = [
-    { numero: 'v2.0', titulo: 'Recursos exclusivos da web', atual: true, mudancas: ['Mapa interativo de ONGs (localize quem ajudar perto de você)', 'Comparador de ONGs lado a lado, com link compartilhável', 'Modo Quiosque em tela cheia para eventos e feiras', 'Relatório de impacto imprimível / em PDF', 'Busca rápida com atalho de teclado (Ctrl/Cmd + K)'] },
+    { numero: 'v2.1', titulo: 'Voz, cartão de impacto, QR e PWA', atual: true, mudancas: ['Fale com a Dora e ouça as respostas (voz no navegador)', '"Meu cartão de impacto" para baixar e compartilhar', 'QR Code do perfil da ONG (abra no celular na hora)', 'Instale o Connect ONG como aplicativo (PWA) e use offline', 'Alertas do navegador quando rola um match'] },
+    { numero: 'v2.0', titulo: 'Recursos exclusivos da web', mudancas: ['Mapa interativo de ONGs (localize quem ajudar perto de você)', 'Comparador de ONGs lado a lado, com link compartilhável', 'Modo Quiosque em tela cheia para eventos e feiras', 'Relatório de impacto imprimível / em PDF', 'Busca rápida com atalho de teclado (Ctrl/Cmd + K)'] },
     { numero: 'v1.9', titulo: 'Frete inteligente e mais IA', mudancas: ['Navegação mais fluida com resposta ao toque', 'Simulador de frete no perfil da ONG (distância + peso)', 'IA estima o peso e avisa se a categoria não combina', 'Resumo de impacto da ONG escrito por IA', '"Sugestões para você" por perfil e cidade'] },
     { numero: 'v1.8', titulo: 'Revisão final de segurança', mudancas: ['Sessão protegida (volta ao login se expirar)', 'Privacidade real: telefone/e-mail só quando a ONG permite', 'Proteção contra abuso em contribuições/cadastro/senha'] },
     { numero: 'v1.7', titulo: 'Assistente com Inteligência Artificial', mudancas: ['Dora, assistente de doação com IA', 'Análise de foto: identifica o item e sugere ONGs', 'Histórico de conversas estilo ChatGPT'] },
@@ -1959,6 +1960,8 @@ const App = (() => {
   // =========================================================================
   // NOTIFICAÇÕES (sino)
   // =========================================================================
+  let sinoUltimo = null; // baseline p/ detectar novidades e disparar notificação do navegador
+  function notifWebOn() { return localStorage.getItem('co_webpush') === '1'; }
   async function atualizarSino() {
     try {
       const r = await API.naoLidas();
@@ -1966,22 +1969,44 @@ const App = (() => {
       const badge = $('#sino-badge');
       if (n > 0) { badge.textContent = n > 9 ? '9+' : n; badge.classList.remove('hidden'); }
       else badge.classList.add('hidden');
+      // Notificação do navegador quando surge novidade (não no 1º carregamento).
+      if (sinoUltimo != null && n > sinoUltimo && notifWebOn() &&
+          'Notification' in window && Notification.permission === 'granted') {
+        try { new Notification('Connect ONG', { body: 'Você tem novidades — abra para ver.', icon: 'assets/img/logo.jpg', tag: 'connectong-novidade' }); } catch {}
+      }
+      sinoUltimo = n;
     } catch { /* silencioso */ }
+  }
+  async function ativarNotifWeb() {
+    if (!('Notification' in window)) { UI.toast('Seu navegador não suporta notificações.', 'aviso'); return; }
+    let perm = Notification.permission;
+    if (perm !== 'granted') { try { perm = await Notification.requestPermission(); } catch {} }
+    if (perm === 'granted') { localStorage.setItem('co_webpush', '1'); UI.toast('Alertas do navegador ativados 🔔', 'ok'); }
+    else { UI.toast('Permissão de notificação negada no navegador.', 'aviso'); }
+    if (cmdk.aberto) fecharCmdk();
+    abrirNotificacoes();
   }
   async function abrirNotificacoes() {
     abrirModal(carregando('Carregando…'), 'max-w-md');
     try {
       const lista = await API.notificacoes();
+      const podeAtivar = ('Notification' in window) && !(Notification.permission === 'granted' && notifWebOn());
       $('#modal-card').innerHTML = `
         <div class="flex items-center justify-between p-5 border-b border-gray-100">
           <h3 class="font-montserrat font-bold text-textDark flex items-center gap-2"><i class="ph-fill ph-bell text-primary"></i> Notificações</h3>
           ${lista.some((n) => !n.lida) ? '<button id="marcar-todas" class="text-sm font-bold text-primary">Marcar todas</button>' : ''}
         </div>
+        ${podeAtivar ? `<button id="ativar-webpush" class="w-full flex items-center gap-3 px-5 py-3 bg-primary-light/60 hover:bg-primary-light text-left border-b border-gray-100">
+          <i class="ph-fill ph-bell-ringing text-primary text-xl"></i>
+          <span class="flex-1 min-w-0"><span class="block font-bold text-sm text-textDark">Ativar alertas do navegador</span><span class="block text-xs text-textGrey">Receba um aviso quando rolar um match, mesmo com a aba fechada.</span></span>
+          <i class="ph ph-caret-right text-textGrey"></i></button>` : ''}
         <div class="max-h-[60vh] overflow-y-auto p-3 space-y-2">
           ${lista.length ? lista.map(cardNotif).join('') : `<p class="text-center text-textGrey py-10">Nenhuma notificação.</p>`}
         </div>`;
       const bt = $('#marcar-todas');
       if (bt) bt.addEventListener('click', async () => { try { await API.marcarTodas(); atualizarSino(); abrirNotificacoes(); } catch (e) { UI.toast(e.message, 'erro'); } });
+      const aw = $('#ativar-webpush');
+      if (aw) aw.addEventListener('click', ativarNotifWeb);
     } catch (e) { $('#modal-card').innerHTML = `<div class="p-6">${erroBox(e.message)}</div>`; }
   }
   const NOTIF_ICON = { MATCH: 'ph-heart', MENSAGEM: 'ph-chat-circle', SISTEMA: 'ph-info', AVALIACAO: 'ph-star' };
@@ -2874,6 +2899,32 @@ const App = (() => {
   }
 
   // =========================================================================
+  // ★ EXCLUSIVO DA WEB — PWA: service worker + botão "Instalar app"
+  // =========================================================================
+  let promptInstalar = null;
+  function registrarPWA() {
+    if ('serviceWorker' in navigator) {
+      // Registra após o load para não competir com o carregamento inicial.
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+    const btn = $('#btn-instalar');
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault(); promptInstalar = e;
+      if (btn) btn.hidden = false;
+    });
+    window.addEventListener('appinstalled', () => {
+      promptInstalar = null; if (btn) btn.hidden = true;
+      UI.toast('Connect ONG instalado! 🎉', 'ok');
+    });
+    if (btn) btn.addEventListener('click', async () => {
+      if (!promptInstalar) return;
+      promptInstalar.prompt();
+      try { await promptInstalar.userChoice; } catch {}
+      promptInstalar = null; btn.hidden = true;
+    });
+  }
+
+  // =========================================================================
   // Init
   // =========================================================================
   function init() {
@@ -2882,6 +2933,7 @@ const App = (() => {
     montarNav();
     ligarAuth();
     ligarCliques();
+    registrarPWA();
     if (API.logado()) { $('#view-login').hidden = true; $('#view-login').style.opacity = '0'; $('#view-app').hidden = false; aoEntrar(); }
     else { carregarStatsLogin(); }
   }

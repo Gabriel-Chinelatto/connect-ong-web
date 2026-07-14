@@ -6,6 +6,15 @@
     <meta name="description" content="Connect ONG - Conectando quem quer ajudar a quem precisa." />
     <title>Connect ONG — Doe de verdade</title>
 
+    <!-- PWA: instalável + tema -->
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#008542" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Connect ONG" />
+    <link rel="apple-touch-icon" href="assets/img/logo.jpg" />
+    <link rel="icon" href="assets/img/logo.jpg" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Lexend:wght@400;500;600;700&family=Montserrat:wght@500;700;800;900&family=Permanent+Marker&display=swap" rel="stylesheet" />
@@ -198,6 +207,9 @@
                 <nav id="nav" class="flex flex-col gap-1.5 px-4 pb-4"></nav>
             </div>
             <div class="px-4 pt-3 border-t border-gray-100 flex-none">
+                <button id="btn-instalar" hidden class="w-full mb-2 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-primary hover:bg-primary-dark text-white font-bold text-sm shadow-md shadow-primary/20 transition-colors">
+                    <i class="ph ph-download-simple text-lg"></i> <span class="hidden lg:inline">Instalar app</span>
+                </button>
                 <button id="btn-perfil" class="w-full flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-xl transition-colors border border-transparent hover:border-gray-200">
                     <span id="perfil-avatar"></span>
                     <div class="hidden lg:flex flex-col items-start text-sm min-w-0">
