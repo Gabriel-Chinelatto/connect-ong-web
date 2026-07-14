@@ -144,6 +144,10 @@ const API = (() => {
       post('/assistente', { mensagem, historico: historico || [], cidade: cidade || null, imagemBase64: imagemBase64 || null }),
     sugestoes: () => post('/assistente/sugestoes', {}),
 
+    // IA "Sobre o Desenvolvimento" (grounding em como o projeto foi feito) — rota pública
+    assistenteDev: (mensagem, historico) =>
+      post('/assistente-dev', { mensagem, historico: historico || [] }),
+
     // ONGs / perfil público
     ongs: () => get('/ongs'),
     perfilOng: (ongId) => get('/ongs/' + ongId + '/perfil-publico'),

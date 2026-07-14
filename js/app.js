@@ -1772,8 +1772,68 @@ const App = (() => {
             </details>`).join('')}
           </div>
         </div>
+        <!-- Chat "Sobre o Desenvolvimento" (IA com grounding em como o projeto foi feito) -->
+        <div>
+          <h4 class="text-xl font-montserrat font-bold text-textDark mb-1 text-center flex items-center justify-center gap-2"><i class="ph-fill ph-code text-primary"></i> Sobre o Desenvolvimento</h4>
+          <p class="text-sm text-textGrey text-center mb-4 max-w-2xl mx-auto">Pergunte como o Connect ONG foi construído — tecnologias, métodos, decisões e o que cada versão entregou. Responde uma IA guiada por um documento do projeto.</p>
+          <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
+            <div id="dev-msgs" class="h-80 overflow-y-auto p-4 space-y-3 bg-background"></div>
+            <form id="dev-form" class="p-3 border-t border-gray-100 flex items-center gap-2">
+              <input id="dev-input" placeholder="Ex: qual a stack? quando a IA foi feita?" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
+              <button class="w-12 h-12 bg-primary hover:bg-primary-dark text-white rounded-2xl flex items-center justify-center flex-shrink-0"><i class="ph-fill ph-paper-plane-right text-xl"></i></button>
+            </form>
+          </div>
+        </div>
         <p class="text-center text-xs text-textGrey">Projeto Integrador • COTIL / UNICAMP • 2026</p>
       </div>`;
+    montarChatDev();
+  }
+
+  // Chat "Sobre o Desenvolvimento" — consome POST /assistente-dev (público).
+  const devChat = { mensagens: [] };
+  const DEV_CHIPS = ['Qual é a stack do projeto?', 'Por que a web é em HTML puro?', 'Quando a IA foi adicionada?', 'Quais recursos são exclusivos da web?'];
+  function devBolha(m) {
+    const meu = m.papel === 'user';
+    return `<div class="flex ${meu ? 'justify-end' : 'justify-start'}">
+      <div class="max-w-[85%] px-4 py-3 rounded-2xl ${meu ? 'bg-primary text-white rounded-br-md' : 'bg-white text-textDark rounded-bl-md shadow-sm'}">
+        <p class="text-sm leading-relaxed whitespace-pre-line">${UI.esc(m.texto)}</p>
+        ${m.modoRegras ? '<span class="inline-block mt-1 text-[10px] font-bold text-textGrey bg-gray-100 rounded-full px-2 py-0.5">Modo básico</span>' : ''}
+      </div></div>`;
+  }
+  function renderDevMsgs() {
+    const box = $('#dev-msgs'); if (!box) return;
+    if (!devChat.mensagens.length) {
+      box.innerHTML = devBolha({ papel: 'assistente', texto: 'Oi! 👋 Posso explicar como o Connect ONG foi desenvolvido: tecnologias, métodos, decisões e o histórico de versões. O que você quer saber?' })
+        + `<div class="flex flex-wrap gap-2 mt-1">${DEV_CHIPS.map((c) => `<button type="button" data-dev-chip="${UI.esc(c)}" class="px-3 py-2 bg-white hover:bg-primary-light rounded-full text-xs font-semibold text-textDark border border-gray-200">${UI.esc(c)}</button>`).join('')}</div>`;
+      box.querySelectorAll('[data-dev-chip]').forEach((b) => b.addEventListener('click', () => { $('#dev-input').value = b.dataset.devChip; $('#dev-form').requestSubmit(); }));
+    } else {
+      box.innerHTML = devChat.mensagens.map(devBolha).join('');
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+  function montarChatDev() {
+    renderDevMsgs();
+    const form = $('#dev-form'); if (!form) return;
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const inp = $('#dev-input'); const texto = inp.value.trim();
+      if (!texto) return;
+      inp.value = '';
+      devChat.mensagens.push({ papel: 'user', texto });
+      renderDevMsgs();
+      const box = $('#dev-msgs');
+      box.insertAdjacentHTML('beforeend', `<div id="dev-typing" class="flex justify-start"><div class="px-4 py-3 bg-white rounded-2xl rounded-bl-md text-textGrey shadow-sm"><i class="ph ph-circle-notch spin"></i> Pensando…</div></div>`);
+      box.scrollTop = box.scrollHeight;
+      try {
+        const hist = devChat.mensagens.slice(-8).map((m) => ({ papel: m.papel, texto: m.texto }));
+        const resp = await API.assistenteDev(texto, hist);
+        const txt = (resp && (resp.resposta || resp.mensagem)) || 'Desculpe, não consegui responder agora.';
+        devChat.mensagens.push({ papel: 'assistente', texto: txt, modoRegras: resp && resp.modo === 'regras' });
+      } catch (err) {
+        devChat.mensagens.push({ papel: 'assistente', texto: 'Ops: ' + err.message });
+      }
+      renderDevMsgs();
+    });
   }
 
   // =========================================================================
