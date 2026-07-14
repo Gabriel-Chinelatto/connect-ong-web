@@ -91,3 +91,40 @@ body.reduz-motion *::after {
     animation-iteration-count: 1 !important;
     transition-duration: .001ms !important;
 }
+
+/* =========================================================================
+   RECURSOS EXCLUSIVOS DA WEB
+   ========================================================================= */
+
+/* --- Mapa de ONGs (Leaflet): pin da marca --- */
+.co-pin {
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #008542; color: #fff; border: 3px solid #fff;
+    box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    font-size: 17px;
+}
+.co-pin.verificada { box-shadow: 0 0 0 2px #ff7b00, 0 4px 12px rgba(0,0,0,.35); }
+.leaflet-popup-content { margin: 12px 14px; }
+.leaflet-popup-content-wrapper { border-radius: 16px; }
+
+/* --- Modo Quiosque: marquees e brilho --- */
+@keyframes scrollX { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.marquee-x { display: inline-flex; animation: scrollX 42s linear infinite; }
+@keyframes scrollUpY { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+.marquee-y { animation: scrollUpY 26s linear infinite; }
+@keyframes floatGlow { 0%,100% { opacity: .35; transform: scale(1); } 50% { opacity: .55; transform: scale(1.08); } }
+.glow { animation: floatGlow 6s ease-in-out infinite; }
+
+/* =========================================================================
+   IMPRESSÃO — só o relatório (#print-root) vai para o papel/PDF
+   ========================================================================= */
+#print-root { display: none; }
+@media print {
+    body { background: #fff !important; overflow: visible !important; height: auto !important; }
+    body.tema-escuro { background: #fff !important; color: #111827 !important; }
+    #view-login, #view-app, #view-showcase, #modal-root, #cmdk-root, #toast-box { display: none !important; }
+    #print-root { display: block !important; }
+    @page { margin: 14mm; }
+    .print-avoid-break { break-inside: avoid; page-break-inside: avoid; }
+}

@@ -68,6 +68,10 @@ const App = (() => {
     { id: 'ranking',   label: 'Ranking',   icon: 'ph-trophy', g: 's' },
     { id: 'doacoes',   label: 'Minhas doações', icon: 'ph-hand-heart', g: 's' },
     { id: 'config',    label: 'Ajustes',   icon: 'ph-gear', g: 's' },
+    // Grupo exclusivo da web (recursos que só fazem sentido em tela larga)
+    { id: 'mapa',      label: 'Mapa de ONGs', icon: 'ph-map-trifold', g: 'w' },
+    { id: 'comparar',  label: 'Comparar ONGs', icon: 'ph-scales', g: 'w' },
+    { id: 'showcase',  label: 'Modo Quiosque', icon: 'ph-presentation-chart', g: 'w' },
   ];
   const TITULOS = {
     inicio: 'Painel de Impacto', explorar: 'Explorar Necessidades',
@@ -75,6 +79,7 @@ const App = (() => {
     ongs: 'ONGs', favoritos: 'Favoritos', impacto: 'Seu Impacto',
     ranking: 'Ranking de Transparência', doacoes: 'Minhas Doações', config: 'Ajustes',
     sobre: 'Sobre o Connect ONG', atividades: 'Atividades da Comunidade',
+    mapa: 'Mapa de ONGs', comparar: 'Comparar ONGs',
   };
 
   function botaoNav(r) {
@@ -85,10 +90,14 @@ const App = (() => {
   function montarNav() {
     const p = ROTAS.filter((r) => r.g === 'p').map(botaoNav).join('');
     const s = ROTAS.filter((r) => r.g === 's').map(botaoNav).join('');
+    const w = ROTAS.filter((r) => r.g === 'w').map(botaoNav).join('');
     $('#nav').innerHTML = `${p}
       <p class="hidden lg:block text-[11px] font-bold text-textGrey/50 uppercase tracking-wider px-4 mt-4 mb-1">Você</p>
       <hr class="lg:hidden border-gray-100 my-2">
-      ${s}`;
+      ${s}
+      <p class="hidden lg:flex items-center gap-1 text-[11px] font-bold text-primary/70 uppercase tracking-wider px-4 mt-4 mb-1"><i class="ph-fill ph-globe-hemisphere-west"></i> Exclusivo da web</p>
+      <hr class="lg:hidden border-gray-100 my-2">
+      ${w}`;
     // Nav inferior (celular): só as rotas principais
     $('#nav-mobile').innerHTML = ROTAS.filter((r) => r.g === 'p').map((r) => `
       <button data-rota="${r.id}" data-navm="${r.id}" class="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-textGrey">
@@ -1193,6 +1202,11 @@ const App = (() => {
       const ongsAjudadas = new Set(inter.filter((i) => i.status === 'CONCLUIDO').map((i) => i.ongId)).size;
       const totalDinheiro = (fin || []).reduce((s, d) => s + (Number(d.valor) || 0), 0);
       root().innerHTML = `
+        <div class="flex justify-end mb-3 slide-up">
+          <button id="btn-relatorio" class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:border-primary hover:text-primary font-bold text-sm shadow-sm transition-colors">
+            <i class="ph ph-printer text-lg"></i> Gerar relatório (PDF) <span class="hidden sm:inline text-[10px] font-bold text-textGrey bg-gray-100 rounded px-1.5 py-0.5 ml-1">web</span>
+          </button>
+        </div>
         <div class="bg-gradient-to-br from-primary to-primary-dark rounded-[24px] p-8 text-white shadow-card mb-8 slide-up relative overflow-hidden">
           <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full"></div>
           <p class="font-semibold text-white/80 relative">Seu impacto no Connect ONG</p>
@@ -1212,6 +1226,7 @@ const App = (() => {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 slide-up" style="animation-delay:.1s">
           ${(conq || []).map(cardConquista).join('') || vazio('ph-medal', 'Sem conquistas ainda', 'Faça sua primeira doação!')}
         </div>`;
+      const br = $('#btn-relatorio'); if (br) br.addEventListener('click', gerarRelatorio);
     } catch (e) { root().innerHTML = erroBox(e.message, 'impacto'); }
   }
   function statCard(icon, valor, label, cor, rota) {
@@ -1665,7 +1680,8 @@ const App = (() => {
     { n: 17, t: 'Parcerias e meios de implementação', cor: '#19486a' },
   ];
   const KVERSOES = [
-    { numero: 'v1.9', titulo: 'Frete inteligente e mais IA', atual: true, mudancas: ['Navegação mais fluida com resposta ao toque', 'Simulador de frete no perfil da ONG (distância + peso)', 'IA estima o peso e avisa se a categoria não combina', 'Resumo de impacto da ONG escrito por IA', '"Sugestões para você" por perfil e cidade'] },
+    { numero: 'v2.0', titulo: 'Recursos exclusivos da web', atual: true, mudancas: ['Mapa interativo de ONGs (localize quem ajudar perto de você)', 'Comparador de ONGs lado a lado, com link compartilhável', 'Modo Quiosque em tela cheia para eventos e feiras', 'Relatório de impacto imprimível / em PDF', 'Busca rápida com atalho de teclado (Ctrl/Cmd + K)'] },
+    { numero: 'v1.9', titulo: 'Frete inteligente e mais IA', mudancas: ['Navegação mais fluida com resposta ao toque', 'Simulador de frete no perfil da ONG (distância + peso)', 'IA estima o peso e avisa se a categoria não combina', 'Resumo de impacto da ONG escrito por IA', '"Sugestões para você" por perfil e cidade'] },
     { numero: 'v1.8', titulo: 'Revisão final de segurança', mudancas: ['Sessão protegida (volta ao login se expirar)', 'Privacidade real: telefone/e-mail só quando a ONG permite', 'Proteção contra abuso em contribuições/cadastro/senha'] },
     { numero: 'v1.7', titulo: 'Assistente com Inteligência Artificial', mudancas: ['Dora, assistente de doação com IA', 'Análise de foto: identifica o item e sugere ONGs', 'Histórico de conversas estilo ChatGPT'] },
     { numero: 'v1.6', titulo: 'Tempo real & Segurança extra', mudancas: ['Matches e interesses em tempo real', '2FA no login', 'Alterar e-mail com confirmação de senha'] },
@@ -1848,14 +1864,469 @@ const App = (() => {
   }
 
   // =========================================================================
+  // ★ EXCLUSIVO DA WEB — MAPA INTERATIVO DE ONGs (Leaflet + OpenStreetMap)
+  // Geocodificação offline por cidade (assets/dados/cidades_coords.json).
+  // =========================================================================
+  let _coordsCidades = null;
+  async function coordsCidades() {
+    if (_coordsCidades) return _coordsCidades;
+    try { const r = await fetch('assets/dados/cidades_coords.json'); _coordsCidades = await r.json(); }
+    catch { _coordsCidades = {}; }
+    return _coordsCidades;
+  }
+  // Normaliza a cidade: minúsculo, sem acento, sem o sufixo " - SP".
+  function chaveCidade(cidade) {
+    return UI.chaveCat(cidade).replace(/\s*-\s*[a-z]{2}\.?\s*$/, '').trim();
+  }
+  const mapaState = { termo: '', instancia: null };
+  function pinOng(o) {
+    return L.divIcon({
+      className: '', iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -18],
+      html: `<div class="co-pin ${o.verificada ? 'verificada' : ''}"><i class="ph-fill ph-buildings"></i></div>`,
+    });
+  }
+  function popupOng(o) {
+    const nota = (Number(o.notaMedia) || 0).toFixed(1);
+    return `<div style="min-width:210px;font-family:Inter,sans-serif">
+      <div style="font-weight:800;font-size:15px;color:#111827;line-height:1.2">${UI.esc(o.nome)} ${o.verificada ? '<span style="color:#008542">✔</span>' : ''}</div>
+      <div style="color:#4b5563;font-size:12px;margin-top:3px">📍 ${UI.esc(o.cidade || 'Brasil')}</div>
+      <div style="color:#4b5563;font-size:12px;margin-top:2px">★ ${nota} · ${o.totalAvaliacoes || 0} avaliação(ões)</div>
+      <button data-perfil-ong="${o.id}" style="margin-top:9px;width:100%;background:#008542;color:#fff;font-weight:700;border:none;border-radius:10px;padding:8px 10px;cursor:pointer;font-size:13px">Ver perfil da ONG</button>
+    </div>`;
+  }
+  async function viewMapa() {
+    // Descarta instância anterior (evita "Map container is already initialized").
+    if (mapaState.instancia) { try { mapaState.instancia.remove(); } catch {} mapaState.instancia = null; }
+    root().innerHTML = carregando('Carregando o mapa…');
+    if (typeof L === 'undefined') { root().innerHTML = erroBox('O mapa precisa de internet (Leaflet/OpenStreetMap) e não pôde ser carregado.', 'mapa'); return; }
+    try {
+      const [ongs, coords] = await Promise.all([API.ongs(), coordsCidades()]);
+      state.ongs = ongs;
+      const comCoord = [], semCoord = [];
+      for (const o of ongs) { const c = coords[chaveCidade(o.cidade)]; if (c) comCoord.push({ o, c }); else semCoord.push(o); }
+      root().innerHTML = `
+        <p class="text-textGrey font-medium mb-4 slide-up">${comCoord.length} ONG(s) no mapa — clique num marcador para abrir o perfil.${semCoord.length ? ` <span class="text-textGrey/70">(${semCoord.length} sem localização cadastrada)</span>` : ''}</p>
+        <div class="relative rounded-3xl overflow-hidden shadow-card border border-gray-100 slide-up" style="height:calc(100vh - 230px);min-height:440px">
+          <div id="mapa-leaflet" class="absolute inset-0"></div>
+          <div class="absolute top-3 left-3 z-[500] w-[min(20rem,70%)]">
+            <div class="relative">
+              <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-textGrey"></i>
+              <input id="mapa-busca" value="${UI.esc(mapaState.termo)}" placeholder="Filtrar por nome ou cidade…" class="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/95 shadow-md border border-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+            </div>
+          </div>
+        </div>
+        ${semCoord.length ? `<p class="text-xs text-textGrey mt-3">Sem localização no mapa: ${semCoord.map((o) => UI.esc(o.nome)).join(', ')}.</p>` : ''}`;
+      const map = L.map('mapa-leaflet', { zoomControl: true, scrollWheelZoom: true }).setView([-22.5, -47.4], 8);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+      mapaState.instancia = map;
+      const grupo = L.featureGroup().addTo(map);
+      function pintar(termo) {
+        grupo.clearLayers();
+        const t = (termo || '').trim().toLowerCase();
+        const contagem = {}; const pts = [];
+        for (const { o, c } of comCoord) {
+          if (t && !(o.nome + ' ' + (o.cidade || '')).toLowerCase().includes(t)) continue;
+          const k = chaveCidade(o.cidade);
+          const n = contagem[k] = (contagem[k] || 0);
+          contagem[k] = n + 1;
+          // Dispersão determinística (espiral) para ONGs na mesma cidade.
+          const ang = n * 2.399, raio = n ? 0.018 + n * 0.007 : 0;
+          const lat = c[0] + Math.sin(ang) * raio, lng = c[1] + Math.cos(ang) * raio;
+          L.marker([lat, lng], { icon: pinOng(o) }).addTo(grupo).bindPopup(popupOng(o), { minWidth: 210 });
+          pts.push([lat, lng]);
+        }
+        if (pts.length) { try { map.fitBounds(pts, { padding: [70, 70], maxZoom: 12 }); } catch {} }
+      }
+      pintar(mapaState.termo);
+      $('#mapa-busca').addEventListener('input', (e) => { mapaState.termo = e.target.value; pintar(e.target.value); });
+      setTimeout(() => { try { map.invalidateSize(); } catch {} }, 200);
+    } catch (e) { root().innerHTML = erroBox(e.message, 'mapa'); }
+  }
+
+  // =========================================================================
+  // ★ EXCLUSIVO DA WEB — COMPARADOR DE ONGs (lado a lado)
+  // =========================================================================
+  const comparar = { ids: [] };
+  async function viewComparar() {
+    root().innerHTML = carregando();
+    try {
+      const ongs = await API.ongs(); state.ongs = ongs;
+      if (!state.perfisComp) state.perfisComp = {};
+      // Deep-link: ?comparar=18,21 pré-seleciona ONGs (comparação compartilhável).
+      if (!comparar.ids.length) {
+        const q = new URLSearchParams(location.search).get('comparar');
+        if (q) comparar.ids = q.split(',').map(Number).filter((n) => ongs.some((o) => o.id === n)).slice(0, 3);
+      }
+      await pintarComparar();
+    } catch (e) { root().innerHTML = erroBox(e.message, 'comparar'); }
+  }
+  const cmpBusca = { termo: '' };
+  async function pintarComparar() {
+    const ongs = state.ongs || [];
+    const selIds = comparar.ids.slice(0, 3);
+    // Garante perfis carregados para as selecionadas.
+    await Promise.all(selIds.map(async (id) => {
+      if (!state.perfisComp[id]) { try { state.perfisComp[id] = await API.perfilOng(id); } catch { state.perfisComp[id] = null; } }
+    }));
+    const t = cmpBusca.termo.trim().toLowerCase();
+    const candidatas = ongs
+      .filter((o) => !selIds.includes(o.id))
+      .filter((o) => !t || (o.nome + ' ' + (o.cidade || '')).toLowerCase().includes(t))
+      .slice(0, 8);
+    root().innerHTML = `
+      <p class="text-textGrey font-medium mb-4 slide-up">Escolha até 3 ONGs e compare transparência, nota e prestações lado a lado — a decisão fica fácil na tela larga.</p>
+      <div class="mb-6 slide-up">
+        <div class="relative w-full md:w-1/2 mb-3">
+          <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-textGrey text-xl"></i>
+          <input id="cmp-busca" value="${UI.esc(cmpBusca.termo)}" placeholder="Buscar ONG para adicionar…" ${selIds.length >= 3 ? 'disabled' : ''} class="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-200 focus:outline-none focus:border-primary disabled:opacity-50">
+        </div>
+        <div class="flex flex-wrap gap-2">
+          ${selIds.length >= 3 ? '<span class="text-sm text-textGrey font-semibold">Máximo de 3 ONGs. Remova uma para trocar.</span>'
+            : candidatas.map((o) => `<button data-cmp-add="${o.id}" class="flex items-center gap-2 px-3 py-2 rounded-full border border-gray-200 bg-white hover:border-primary hover:text-primary font-bold text-sm transition-colors">
+                <i class="ph ph-plus"></i> ${UI.esc(o.nome)}</button>`).join('') || '<span class="text-sm text-textGrey">Nenhuma ONG encontrada.</span>'}
+        </div>
+      </div>
+      <div id="cmp-tabela" class="slide-up">${selIds.length < 2
+        ? vazio('ph-scales', 'Selecione ao menos 2 ONGs', 'Adicione ONGs acima para ver a comparação lado a lado.')
+        : tabelaComparar(selIds)}</div>`;
+    const bu = $('#cmp-busca');
+    if (bu) bu.addEventListener('input', (e) => { cmpBusca.termo = e.target.value; pintarComparar(); });
+  }
+  function linhaCmp(label, valores, icon) {
+    return `<tr class="border-t border-gray-100">
+      <th class="text-left p-3 text-sm font-bold text-textGrey whitespace-nowrap align-top"><i class="ph ${icon} text-primary"></i> ${label}</th>
+      ${valores.map((v) => `<td class="p-3 text-center align-top">${v}</td>`).join('')}</tr>`;
+  }
+  function tabelaComparar(selIds) {
+    const perfis = selIds.map((id) => state.perfisComp[id]).filter(Boolean);
+    if (perfis.length < 2) return erroBox('Não foi possível carregar todos os perfis para comparar.');
+    // Destaques: melhor nota, maior score, mais prestações.
+    const max = (f) => Math.max(...perfis.map(f));
+    const melhorNota = max((p) => Number(p.notaMedia) || 0);
+    const melhorScore = max((p) => Number(p.transparenciaScore) || 0);
+    const melhorPrest = max((p) => (p.totalPrestacoes ?? (p.prestacoes || []).length) || 0);
+    const destaque = (cond, txt) => cond ? `<span class="inline-block mt-1 text-[10px] font-bold text-white bg-primary rounded-full px-2 py-0.5">${txt}</span>` : '';
+    const cab = perfis.map((p) => {
+      const nv = NIVEL[p.nivelTransparencia] || {};
+      return `<th class="p-4 align-bottom" style="width:${Math.floor(72 / perfis.length)}%">
+        <div class="flex flex-col items-center gap-2">
+          <button data-cmp-rm="${p.id}" class="self-end -mb-1 text-textGrey hover:text-red-500" title="Remover"><i class="ph ph-x-circle text-lg"></i></button>
+          ${UI.avatar(p.nome, 'w-14 h-14 text-lg')}
+          <button data-perfil-ong="${p.id}" class="font-montserrat font-bold text-textDark text-sm leading-tight hover:text-primary text-center">${UI.esc(p.nome)} ${p.verificada ? '<i class="ph-fill ph-seal-check text-primary text-xs"></i>' : ''}</button>
+          ${p.nivelTransparencia ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${nv.cls || 'bg-gray-100'}">${nv.emoji || ''} ${p.nivelTransparencia}</span>` : ''}
+        </div></th>`;
+    }).join('');
+    const notaCell = (p) => { const v = Number(p.notaMedia) || 0; return `<div>${UI.estrelas(v)}<p class="font-bold text-textDark mt-1">${v.toFixed(1)} <span class="text-xs text-textGrey font-normal">(${p.totalAvaliacoes || 0})</span></p>${destaque(v > 0 && v === melhorNota, 'Melhor nota')}</div>`; };
+    const scoreCell = (p) => { const v = Number(p.transparenciaScore) || 0; return `<div><p class="text-2xl font-montserrat font-black text-primary">${v}</p><p class="text-xs text-textGrey">pontos</p>${destaque(v > 0 && v === melhorScore, 'Mais transparente')}</div>`; };
+    const prestCell = (p) => { const v = (p.totalPrestacoes ?? (p.prestacoes || []).length) || 0; return `<div><p class="font-bold text-textDark">${v}</p>${destaque(v > 0 && v === melhorPrest, 'Mais prestações')}</div>`; };
+    const necCell = (p) => `${(p.totalNecessidades ?? (p.necessidades || []).filter((n) => n.status === 'ABERTA').length) || 0}`;
+    return `<div class="overflow-x-auto rounded-2xl border border-gray-100 shadow-card bg-white">
+      <table class="w-full border-collapse min-w-[520px]">
+        <thead><tr><th class="p-4"></th>${cab}</tr></thead>
+        <tbody>
+          ${linhaCmp('Cidade', perfis.map((p) => `<span class="text-sm text-textDark">${UI.esc(p.cidade || 'Brasil')}</span>`), 'ph-map-pin')}
+          ${linhaCmp('Nota média', perfis.map(notaCell), 'ph-star')}
+          ${linhaCmp('Transparência', perfis.map(scoreCell), 'ph-shield-check')}
+          ${linhaCmp('Prestações de contas', perfis.map(prestCell), 'ph-receipt')}
+          ${linhaCmp('Necessidades abertas', perfis.map((p) => `<span class="font-bold text-textDark">${necCell(p)}</span>`), 'ph-package')}
+          ${linhaCmp('Campanhas', perfis.map((p) => `<span class="font-bold text-textDark">${(p.totalCampanhas ?? (p.campanhas || []).length) || 0}</span>`), 'ph-megaphone')}
+          ${linhaCmp('Verificada', perfis.map((p) => p.verificada ? '<i class="ph-fill ph-seal-check text-primary text-xl"></i>' : '<span class="text-textGrey">—</span>'), 'ph-seal-check')}
+          ${linhaCmp('', perfis.map((p) => `<button data-perfil-ong="${p.id}" class="px-4 py-2 bg-primary hover:bg-primary-dark text-white font-bold text-sm rounded-xl">Ver perfil</button>`), 'ph-arrow-right')}
+        </tbody>
+      </table></div>`;
+  }
+
+  // =========================================================================
+  // ★ EXCLUSIVO DA WEB — MODO QUIOSQUE / APRESENTAÇÃO (tela cheia p/ a feira)
+  // =========================================================================
+  let showcaseRefresh = null, showcaseRotaciona = null;
+  function showcaseEsc(e) { if (e.key === 'Escape') fecharShowcase(); }
+  function animarNumero(el, alvo, dur = 1400) {
+    const ini = performance.now(); const de = 0;
+    function passo(t) {
+      const p = Math.min(1, (t - ini) / dur);
+      const ease = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(de + (alvo - de) * ease).toLocaleString('pt-BR');
+      if (p < 1) requestAnimationFrame(passo);
+    }
+    requestAnimationFrame(passo);
+  }
+  async function abrirShowcase() {
+    const el = $('#view-showcase');
+    el.hidden = false;
+    el.innerHTML = `<div class="h-full flex items-center justify-center text-white/70"><i class="ph ph-circle-notch spin text-4xl"></i></div>`;
+    document.addEventListener('keydown', showcaseEsc);
+    await carregarShowcase();
+    showcaseRefresh = setInterval(carregarShowcase, 25000);
+  }
+  function fecharShowcase() {
+    if (showcaseRefresh) { clearInterval(showcaseRefresh); showcaseRefresh = null; }
+    if (showcaseRotaciona) { clearInterval(showcaseRotaciona); showcaseRotaciona = null; }
+    document.removeEventListener('keydown', showcaseEsc);
+    const el = $('#view-showcase'); el.hidden = true; el.innerHTML = '';
+  }
+  async function carregarShowcase() {
+    const [s, ativ, rank] = await Promise.all([
+      API.estatisticas().catch(() => ({})),
+      API.atividades(20).catch(() => []),
+      API.ranking(10).catch(() => []),
+    ]);
+    renderShowcase(s, ativ || [], rank || []);
+  }
+  function renderShowcase(s, ativ, rank) {
+    const el = $('#view-showcase');
+    const tiles = [
+      { k: 'totalOngs', l: 'ONGs parceiras', i: 'ph-buildings', v: s.totalOngs },
+      { k: 'totalDoadores', l: 'Doadores', i: 'ph-users-three', v: s.totalDoadores },
+      { k: 'totalNecessidades', l: 'Necessidades', i: 'ph-package', v: s.totalNecessidades },
+      { k: 'totalMatches', l: 'Conexões', i: 'ph-heart', v: s.totalMatches ?? s.totalInteresses },
+    ];
+    const tickerItens = ativ.length ? ativ.map((a) => `<span class="inline-flex items-center gap-2 mx-6 text-white/90">
+      <i class="ph-fill ${ATIV_ICON[a.tipo] || 'ph-circle'} text-accent"></i>${UI.esc(a.descricao || '')}${a.ongNome ? ` <span class="text-white/50">· ${UI.esc(a.ongNome)}</span>` : ''}</span>`).join('')
+      : '<span class="mx-6 text-white/60">A comunidade Connect ONG está começando…</span>';
+    el.innerHTML = `
+      <div class="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full bg-primary/40 blur-3xl glow"></div>
+      <div class="absolute -bottom-32 -right-24 w-[560px] h-[560px] rounded-full bg-accent/25 blur-3xl glow" style="animation-delay:2s"></div>
+      <div class="relative z-10 min-h-full flex flex-col p-6 lg:p-10">
+        <!-- Cabeçalho -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <img src="assets/img/logo.jpg" alt="Connect ONG" onerror="this.style.display='none'" class="w-14 h-14 rounded-2xl object-cover shadow-lg">
+            <div>
+              <h1 class="text-3xl lg:text-4xl font-montserrat font-black tracking-tight">Connect <span class="text-primary">ONG</span></h1>
+              <p class="text-white/60 font-semibold text-sm">Conectando quem quer ajudar a quem precisa</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="hidden sm:inline-flex items-center gap-2 text-white/70 font-semibold"><span class="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span> ao vivo</span>
+            <button id="showcase-sair" class="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors" title="Sair (Esc)"><i class="ph ph-x text-xl"></i></button>
+          </div>
+        </div>
+
+        <!-- Corpo -->
+        <div class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+          <!-- Estatísticas gigantes -->
+          <div class="lg:col-span-2 flex flex-col justify-center gap-5">
+            <div class="grid grid-cols-2 gap-5">
+              ${tiles.map((t) => `<div class="bg-white/5 backdrop-blur rounded-3xl p-5 border border-white/10">
+                <i class="ph-fill ${t.i} text-2xl lg:text-3xl text-accent"></i>
+                <p class="showcase-num text-5xl lg:text-6xl font-montserrat font-black mt-2" data-alvo="${Number(t.v) || 0}">0</p>
+                <p class="text-white/60 font-bold uppercase tracking-wider text-xs lg:text-sm mt-1">${t.l}</p>
+              </div>`).join('')}
+            </div>
+            <div class="bg-gradient-to-r from-primary to-primary-dark rounded-3xl p-5 flex items-center justify-between">
+              <div>
+                <p class="text-white/80 font-semibold text-sm">Já arrecadado em campanhas</p>
+                <p class="text-4xl lg:text-5xl font-montserrat font-black mt-1">${UI.brl(s.valorTotalDoado)}</p>
+              </div>
+              <i class="ph-fill ph-hand-heart text-5xl lg:text-6xl text-white/30"></i>
+            </div>
+          </div>
+
+          <!-- Ranking de transparência -->
+          <div class="bg-white/5 backdrop-blur rounded-3xl p-6 border border-white/10 flex flex-col min-h-0">
+            <h2 class="font-montserrat font-black text-xl flex items-center gap-2 mb-4"><i class="ph-fill ph-trophy text-accent"></i> Mais transparentes</h2>
+            <div class="flex-1 overflow-hidden space-y-2">
+              ${(rank.length ? rank.slice(0, 8) : []).map((o, i) => `
+                <div class="flex items-center gap-3 bg-white/5 rounded-2xl p-3">
+                  <span class="text-xl font-montserrat font-black w-8 text-center">${['🥇', '🥈', '🥉'][i] || (i + 1)}</span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-bold truncate">${UI.esc(o.nome)}</p>
+                    <p class="text-white/50 text-xs truncate">${UI.esc(o.cidade || 'Brasil')} · ${o.nivel || ''}</p>
+                  </div>
+                  <span class="font-montserrat font-black text-primary text-lg">${o.score}</span>
+                </div>`).join('') || '<p class="text-white/50">Sem ranking ainda.</p>'}
+            </div>
+          </div>
+        </div>
+
+        <!-- Ticker de atividades -->
+        <div class="mt-6 overflow-hidden border-t border-white/10 pt-4">
+          <p class="text-white/40 font-bold uppercase tracking-widest text-xs mb-2">Acontecendo agora</p>
+          <div class="whitespace-nowrap overflow-hidden">
+            <div class="marquee-x">${tickerItens}${tickerItens}</div>
+          </div>
+        </div>
+      </div>`;
+    el.querySelectorAll('.showcase-num').forEach((n) => animarNumero(n, Number(n.dataset.alvo) || 0));
+    $('#showcase-sair').addEventListener('click', fecharShowcase);
+  }
+
+  // =========================================================================
+  // ★ EXCLUSIVO DA WEB — RELATÓRIO DE IMPACTO IMPRIMÍVEL / PDF
+  // =========================================================================
+  async function gerarRelatorio() {
+    UI.toast('Preparando seu relatório…', 'info');
+    try {
+      const u = API.usuario() || {};
+      const [inter, fin, conq] = await Promise.all([
+        API.meusInteresses().catch(() => []),
+        API.minhasDoacoesFinanceiras().catch(() => []),
+        API.conquistas().catch(() => []),
+      ]);
+      const concl = inter.filter((i) => i.status === 'CONCLUIDO');
+      const ativos = inter.filter((i) => i.status === 'ACEITO').length;
+      const ongsAjudadas = new Set(concl.map((i) => i.ongId)).size;
+      const totalDinheiro = (fin || []).reduce((s, d) => s + (Number(d.valor) || 0), 0);
+      const conquistadas = (conq || []).filter((c) => c.conquistada);
+      const agora = new Date();
+      const box = (v, l) => `<div style="flex:1;text-align:center;padding:14px;border:1px solid #e5e7eb;border-radius:14px">
+        <div style="font-size:34px;font-weight:900;color:#008542;font-family:Montserrat,sans-serif">${v}</div>
+        <div style="font-size:12px;color:#4b5563;font-weight:700;text-transform:uppercase;letter-spacing:.04em">${l}</div></div>`;
+      $('#print-root').innerHTML = `
+        <div style="font-family:Inter,Arial,sans-serif;color:#111827;max-width:720px;margin:0 auto">
+          <div class="print-avoid-break" style="display:flex;align-items:center;gap:14px;border-bottom:3px solid #008542;padding-bottom:14px;margin-bottom:20px">
+            <div style="width:52px;height:52px;border-radius:14px;background:#008542;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;font-family:Montserrat,sans-serif">C</div>
+            <div style="flex:1">
+              <div style="font-size:22px;font-weight:900;font-family:Montserrat,sans-serif">Relatório de Impacto</div>
+              <div style="font-size:13px;color:#4b5563">Connect ONG · ${UI.esc(u.nome || 'Doador')} · emitido em ${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+            </div>
+          </div>
+
+          <div class="print-avoid-break" style="display:flex;gap:12px;margin-bottom:22px">
+            ${box(concl.length, 'Doações concluídas')}
+            ${box(ongsAjudadas, 'ONGs ajudadas')}
+            ${box((fin || []).length, 'Doações em $')}
+            ${box(UI.brl(totalDinheiro).replace('R$', 'R$ '), 'Total doado')}
+          </div>
+
+          <div class="print-avoid-break" style="margin-bottom:22px">
+            <div style="font-size:16px;font-weight:800;margin-bottom:10px;font-family:Montserrat,sans-serif">Doações concluídas</div>
+            ${concl.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead><tr style="text-align:left;color:#4b5563;border-bottom:1px solid #e5e7eb">
+                <th style="padding:6px 4px">Item</th><th style="padding:6px 4px">ONG</th><th style="padding:6px 4px">Situação</th></tr></thead>
+              <tbody>${concl.map((i) => `<tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:6px 4px;font-weight:600">${UI.esc(i.necessidadeTitulo || 'Doação')}</td>
+                <td style="padding:6px 4px">${UI.esc(i.ongNome || '')}</td>
+                <td style="padding:6px 4px;color:#008542;font-weight:700">Concluída</td></tr>`).join('')}</tbody>
+            </table>` : '<div style="color:#4b5563;font-size:13px">Nenhuma doação concluída ainda — sua jornada está só começando!</div>'}
+          </div>
+
+          ${(fin || []).length ? `<div class="print-avoid-break" style="margin-bottom:22px">
+            <div style="font-size:16px;font-weight:800;margin-bottom:10px;font-family:Montserrat,sans-serif">Doações em dinheiro (PIX)</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <tbody>${fin.map((d) => `<tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:6px 4px;font-weight:600">${UI.esc(d.ongNome || 'ONG')}</td>
+                <td style="padding:6px 4px;color:#4b5563">${d.campanhaTitulo ? UI.esc(d.campanhaTitulo) : '—'}</td>
+                <td style="padding:6px 4px;text-align:right;font-weight:800;color:#008542">${UI.brl(d.valor)}</td></tr>`).join('')}</tbody>
+            </table>
+          </div>` : ''}
+
+          ${conquistadas.length ? `<div class="print-avoid-break" style="margin-bottom:22px">
+            <div style="font-size:16px;font-weight:800;margin-bottom:10px;font-family:Montserrat,sans-serif">Conquistas (${conquistadas.length})</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">${conquistadas.map((c) => `<span style="border:1px solid #ffd8a8;background:#fff4e6;color:#b45309;font-weight:700;font-size:12px;padding:6px 12px;border-radius:999px">🏅 ${UI.esc(c.titulo)}</span>`).join('')}</div>
+          </div>` : ''}
+
+          <div style="margin-top:26px;border-top:1px solid #e5e7eb;padding-top:12px;font-size:11px;color:#9ca3af;text-align:center">
+            Gerado pelo Connect ONG · Obrigado por transformar vidas 💚
+          </div>
+        </div>`;
+      // Dá um tempo para o layout aplicar antes de imprimir.
+      setTimeout(() => window.print(), 250);
+    } catch (e) { UI.toast('Não foi possível gerar o relatório: ' + e.message, 'erro'); }
+  }
+
+  // =========================================================================
+  // ★ EXCLUSIVO DA WEB — COMMAND PALETTE (Ctrl/Cmd + K) + busca global
+  // =========================================================================
+  const cmdk = { aberto: false, itens: [], filtro: '', sel: 0 };
+  function acoesFixas() {
+    const nav = ROTAS.map((r) => ({ tipo: 'rota', rota: r.id, titulo: r.label, sub: 'Ir para', icon: r.icon }));
+    nav.push({ tipo: 'rota', rota: 'sobre', titulo: 'Sobre o Connect ONG', sub: 'Ir para', icon: 'ph-info' });
+    nav.push({ tipo: 'rota', rota: 'atividades', titulo: 'Atividades da comunidade', sub: 'Ir para', icon: 'ph-pulse' });
+    const acoes = [
+      { tipo: 'acao', fn: () => abrirShowcase(), titulo: 'Abrir Modo Quiosque', sub: 'Ação', icon: 'ph-presentation-chart' },
+      { tipo: 'acao', fn: () => abrirNovaDoacao(), titulo: 'Cadastrar nova doação', sub: 'Ação', icon: 'ph-gift' },
+      { tipo: 'acao', fn: () => gerarRelatorio(), titulo: 'Gerar relatório de impacto (PDF)', sub: 'Ação', icon: 'ph-printer' },
+      { tipo: 'acao', fn: () => abrirNotificacoes(), titulo: 'Ver notificações', sub: 'Ação', icon: 'ph-bell' },
+    ];
+    return nav.concat(acoes);
+  }
+  async function montarItensCmdk() {
+    const itens = acoesFixas();
+    // ONGs e necessidades (usa cache; dispara carga se faltar).
+    (state.ongs || []).forEach((o) => itens.push({ tipo: 'ong', id: o.id, titulo: o.nome, sub: 'ONG · ' + (o.cidade || 'Brasil'), icon: 'ph-buildings' }));
+    (state.necessidades || []).filter((n) => n.status === 'ABERTA').forEach((n) => itens.push({ tipo: 'nec', id: n.id, titulo: n.titulo, sub: 'Necessidade · ' + (n.ongNome || ''), icon: 'ph-package' }));
+    cmdk.itens = itens;
+  }
+  function abrirCmdk() {
+    if ($('#view-app').hidden) return; // só logado
+    cmdk.aberto = true; cmdk.filtro = ''; cmdk.sel = 0;
+    montarItensCmdk();
+    // Carrega ONGs/necessidades em segundo plano se ainda não há cache.
+    const precisa = [];
+    if (!state.ongs) precisa.push(API.ongs().then((l) => { state.ongs = l; }).catch(() => {}));
+    if (!state.necessidades) precisa.push(getNecessidades().catch(() => {}));
+    if (precisa.length) Promise.all(precisa).then(() => { if (cmdk.aberto) { montarItensCmdk(); pintarCmdk(); } });
+    $('#cmdk-root').innerHTML = `
+      <div id="cmdk-bg" class="fixed inset-0 z-[95] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[12vh] p-4 fade-in">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden slide-up">
+          <div class="flex items-center gap-3 px-4 border-b border-gray-100">
+            <i class="ph ph-magnifying-glass text-xl text-textGrey"></i>
+            <input id="cmdk-input" placeholder="Buscar telas, ONGs, ações…" autocomplete="off" class="flex-1 py-4 text-lg focus:outline-none bg-transparent">
+            <kbd class="text-[10px] font-bold text-textGrey bg-gray-100 rounded px-1.5 py-0.5">ESC</kbd>
+          </div>
+          <div id="cmdk-lista" class="max-h-[52vh] overflow-y-auto p-2"></div>
+        </div>
+      </div>`;
+    const inp = $('#cmdk-input');
+    inp.addEventListener('input', (e) => { cmdk.filtro = e.target.value; cmdk.sel = 0; pintarCmdk(); });
+    inp.addEventListener('keydown', navCmdk);
+    $('#cmdk-bg').addEventListener('click', (e) => { if (e.target.id === 'cmdk-bg') fecharCmdk(); });
+    pintarCmdk();
+    setTimeout(() => inp.focus(), 30);
+  }
+  function fecharCmdk() { cmdk.aberto = false; $('#cmdk-root').innerHTML = ''; }
+  function filtrarCmdk() {
+    const t = cmdk.filtro.trim().toLowerCase();
+    let r = cmdk.itens;
+    if (t) r = r.filter((i) => (i.titulo + ' ' + (i.sub || '')).toLowerCase().includes(t));
+    return r.slice(0, 30);
+  }
+  function pintarCmdk() {
+    const lista = $('#cmdk-lista'); if (!lista) return;
+    const r = filtrarCmdk();
+    cmdk._filtrados = r;
+    if (cmdk.sel >= r.length) cmdk.sel = Math.max(0, r.length - 1);
+    lista.innerHTML = r.length ? r.map((i, idx) => `
+      <button data-cmdk-idx="${idx}" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left ${idx === cmdk.sel ? 'bg-primary-light' : 'hover:bg-gray-50'}">
+        <span class="w-9 h-9 rounded-lg bg-background flex items-center justify-center text-primary flex-shrink-0"><i class="ph ${i.icon}"></i></span>
+        <span class="flex-1 min-w-0"><span class="block font-bold text-textDark truncate">${UI.esc(i.titulo)}</span><span class="block text-xs text-textGrey truncate">${UI.esc(i.sub || '')}</span></span>
+        ${idx === cmdk.sel ? '<kbd class="text-[10px] font-bold text-textGrey bg-gray-100 rounded px-1.5 py-0.5">↵</kbd>' : ''}
+      </button>`).join('')
+      : `<p class="text-center text-textGrey py-8 text-sm">Nada encontrado para "${UI.esc(cmdk.filtro)}".</p>`;
+    lista.querySelectorAll('[data-cmdk-idx]').forEach((b) => b.addEventListener('click', () => executarCmdk(Number(b.dataset.cmdkIdx))));
+    const ativo = lista.querySelector(`[data-cmdk-idx="${cmdk.sel}"]`);
+    if (ativo) ativo.scrollIntoView({ block: 'nearest' });
+  }
+  function navCmdk(e) {
+    const r = cmdk._filtrados || [];
+    if (e.key === 'ArrowDown') { e.preventDefault(); cmdk.sel = Math.min(r.length - 1, cmdk.sel + 1); pintarCmdk(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); cmdk.sel = Math.max(0, cmdk.sel - 1); pintarCmdk(); }
+    else if (e.key === 'Enter') { e.preventDefault(); executarCmdk(cmdk.sel); }
+    else if (e.key === 'Escape') { e.preventDefault(); fecharCmdk(); }
+  }
+  function executarCmdk(idx) {
+    const i = (cmdk._filtrados || [])[idx]; if (!i) return;
+    fecharCmdk();
+    if (i.tipo === 'rota') irPara(i.rota);
+    else if (i.tipo === 'ong') abrirPerfilOng(Number(i.id));
+    else if (i.tipo === 'nec') abrirNecessidade(Number(i.id));
+    else if (i.tipo === 'acao' && i.fn) i.fn();
+  }
+
+  // =========================================================================
   // Roteador
   // =========================================================================
   const VIEWS = {
     inicio: viewInicio, explorar: viewExplorar, matches: viewMatches, campanhas: viewCampanhas, dora: viewDora,
     ongs: viewOngs, favoritos: viewFavoritos, impacto: viewImpacto, ranking: viewRanking,
     doacoes: viewDoacoes, config: viewConfig, sobre: viewSobre, atividades: viewAtividades,
+    mapa: viewMapa, comparar: viewComparar,
   };
   function irPara(rota) {
+    // Modo Quiosque é uma sobreposição de tela cheia, não troca a view do app.
+    if (rota === 'showcase') { abrirShowcase(); return; }
     if (!VIEWS[rota]) rota = 'inicio';
     // Ao sair dos Ajustes com alterações não salvas, confirma (salvar/descartar).
     if (state.rota === 'config' && rota !== 'config' && cfgDraft && state.prefs && !prefsIguais(cfgDraft, state.prefs)) {
@@ -2061,8 +2532,10 @@ const App = (() => {
   // =========================================================================
   function ligarCliques() {
     document.addEventListener('click', (e) => {
-      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir],[data-dora-abrir],[data-dora-menu],[data-editdoacao],[data-deldoacao],[data-cat]');
+      const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir],[data-dora-abrir],[data-dora-menu],[data-editdoacao],[data-deldoacao],[data-cat],[data-cmp-add],[data-cmp-rm]');
       if (!alvo) return;
+      if (alvo.dataset.cmpAdd) { const id = Number(alvo.dataset.cmpAdd); if (!comparar.ids.includes(id) && comparar.ids.length < 3) { comparar.ids.push(id); cmpBusca.termo = ''; } return pintarComparar(); }
+      if (alvo.dataset.cmpRm) { comparar.ids = comparar.ids.filter((x) => x !== Number(alvo.dataset.cmpRm)); return pintarComparar(); }
       if (alvo.dataset.cat) { explorar.categoria = alvo.dataset.cat; return viewExplorar(); }
       if (alvo.dataset.editdoacao) return editarDoacao(alvo.dataset.editdoacao);
       if (alvo.dataset.deldoacao) return excluirDoacao(alvo.dataset.deldoacao);
@@ -2090,6 +2563,15 @@ const App = (() => {
 
     $('#btn-perfil').addEventListener('click', () => { irPara('config'); });
     $('#btn-sino').addEventListener('click', abrirNotificacoes);
+    $('#btn-buscar').addEventListener('click', abrirCmdk);
+
+    // Atalho global do Command palette (Ctrl/Cmd + K) — recurso exclusivo da web.
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        if (cmdk.aberto) fecharCmdk(); else abrirCmdk();
+      }
+    });
 
     window.addEventListener('co:deslogado', () => { UI.toast('Sessão expirada.', 'aviso'); mostrarLogin(); });
   }
