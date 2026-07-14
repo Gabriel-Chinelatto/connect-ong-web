@@ -1183,10 +1183,10 @@ const App = (() => {
   }
 
   function compartilharOng(ongId) {
-    // Se o app está apontando para um backend de REDE (não localhost), o link
-    // leva junto ?api=<backend> — senão o celular que abrir o QR tentaria falar
-    // com o próprio localhost:8080 e não acharia a API.
-    const propagaApi = !/localhost|127\.0\.0\.1/.test(API.BASE);
+    // Base '' = mesma origem (atrás do proxy/HTTPS): o link não precisa de ?api,
+    // pois o próprio servidor encaminha a API. Só propaga ?api quando o backend é
+    // um host de rede explícito (LAN), para o celular saber onde está a API.
+    const propagaApi = API.BASE && !/localhost|127\.0\.0\.1/.test(API.BASE);
     const qs = propagaApi ? '?api=' + API.BASE : '';
     const link = location.origin + location.pathname + qs + '#/ong/' + ongId;
     const nome = (state.perfilOngAtual && state.perfilOngAtual.id === Number(ongId) && state.perfilOngAtual.nome)
@@ -1238,7 +1238,14 @@ const App = (() => {
     } catch (e) { UI.toast(e.message, 'erro'); }
   }
 
-  function abrirAvaliar(ongId, ongNome) {
+  async function abrirAvaliar(ongId, ongNome) {
+    // Só quem CONCLUIU uma doação com esta ONG pode avaliar (regra do backend).
+    // Se ainda não doou, mostra um aviso amigável em vez de abrir o formulário.
+    let podeAvaliar = (matches.dados || []).some((i) => Number(i.ongId) === Number(ongId) && i.status === 'CONCLUIDO');
+    if (!podeAvaliar) {
+      try { const l = await API.meusInteresses(); matches.dados = l; podeAvaliar = l.some((i) => Number(i.ongId) === Number(ongId) && i.status === 'CONCLUIDO'); } catch {}
+    }
+    if (!podeAvaliar) { UI.toast('Você ainda não concluiu uma doação para esta ONG — só é possível avaliar depois de doar 💚', 'aviso'); return; }
     let nota = 5;
     abrirModal(`<div class="p-7">
       <h3 class="text-xl font-montserrat font-bold text-textDark text-center">Avaliar ${UI.esc(ongNome)}</h3>

@@ -5,29 +5,34 @@
    ========================================================================= */
 
 const API = (() => {
-  // Base do backend. Pode ser trocada por ?api=... na URL — MAS só para localhost
-  // ou rede LOCAL (uso de feira: apontar o servidor da escola por IP de LAN).
-  // Hosts públicos são recusados: senão um link malicioso ?api=https://evil.com
-  // faria o navegador logado enviar o token JWT (header Authorization) ao atacante.
+  // Base do backend:
+  //  - SEM ?api (padrão): usa a MESMA ORIGEM (string vazia = URL relativa). O app
+  //    roda atrás do serve.py, que entrega os arquivos E encaminha a API no mesmo
+  //    endereço — então funciona em HTTPS/túnel, de qualquer rede, SEM CORS.
+  //  - COM ?api: aceita a própria origem, localhost ou rede LOCAL (LAN). Recusa
+  //    host público externo: senão um link malicioso ?api=https://evil.com faria
+  //    o navegador logado mandar o token JWT (header Authorization) ao atacante.
+  //  - Dev sem proxy: abra com ?api=http://localhost:8080.
   const params = new URLSearchParams(location.search);
   function baseValida(u) {
     if (!u) return null;
     try {
-      const url = new URL(u);
+      const url = new URL(u, location.origin);
+      if (url.origin === location.origin) return '';            // mesma origem => relativo
       if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
       const h = url.hostname;
       const local = h === 'localhost' || h === '127.0.0.1' || h === '::1' ||
-        h === location.hostname ||
         /^10\./.test(h) || /^192\.168\./.test(h) ||
         /^172\.(1[6-9]|2[0-9]|3[01])\./.test(h);
       return local ? url.origin : null;
     } catch { return null; }
   }
   const apiParam = params.get('api');
-  if (apiParam && !baseValida(apiParam)) {
-    console.warn('[Connect ONG] ?api= ignorado: host não é local (proteção do token).');
+  if (apiParam && baseValida(apiParam) == null) {
+    console.warn('[Connect ONG] ?api= ignorado: host não permitido (proteção do token).');
   }
-  const BASE = baseValida(apiParam) || 'http://localhost:8080';
+  // '' (mesma origem) é o padrão; baseValida pode devolver '' também (origem própria).
+  const BASE = apiParam != null ? (baseValida(apiParam) ?? '') : '';
 
   const LS_TOKEN = 'co_token';
   const LS_REFRESH = 'co_refresh';

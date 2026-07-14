@@ -60,6 +60,11 @@ body.tema-escuro .bg-gray-200 { background-color: #374151 !important; }
 body.tema-escuro .bg-primary-light,
 body.tema-escuro .bg-primary-light\/50,
 body.tema-escuro .bg-primary-light\/60 { background-color: rgba(0,133,66,.20) !important; }
+/* Cards claros translúcidos (ex.: sugestões de ONG da Dora, chips de reação) —
+   sem isto ficavam brancos com texto claro (ilegíveis) no tema escuro. */
+body.tema-escuro .bg-white\/90 { background-color: rgba(43,54,68,.94) !important; }
+body.tema-escuro .bg-white\/10 { background-color: rgba(255,255,255,.08) !important; }
+body.tema-escuro .hover\:bg-white:hover { background-color: #313d4d !important; }
 body.tema-escuro .hover\:bg-gray-50:hover { background-color: #222c39 !important; }
 body.tema-escuro .hover\:bg-gray-100:hover { background-color: #2b3644 !important; }
 body.tema-escuro .shadow-card,
