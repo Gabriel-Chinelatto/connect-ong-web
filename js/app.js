@@ -1183,7 +1183,12 @@ const App = (() => {
   }
 
   function compartilharOng(ongId) {
-    const link = location.origin + location.pathname + '#/ong/' + ongId;
+    // Se o app está apontando para um backend de REDE (não localhost), o link
+    // leva junto ?api=<backend> — senão o celular que abrir o QR tentaria falar
+    // com o próprio localhost:8080 e não acharia a API.
+    const propagaApi = !/localhost|127\.0\.0\.1/.test(API.BASE);
+    const qs = propagaApi ? '?api=' + API.BASE : '';
+    const link = location.origin + location.pathname + qs + '#/ong/' + ongId;
     const nome = (state.perfilOngAtual && state.perfilOngAtual.id === Number(ongId) && state.perfilOngAtual.nome)
       || ((state.ongs || []).find((o) => o.id === Number(ongId)) || {}).nome || 'esta ONG';
     abrirModal(`
