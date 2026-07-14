@@ -1184,8 +1184,28 @@ const App = (() => {
 
   function compartilharOng(ongId) {
     const link = location.origin + location.pathname + '#/ong/' + ongId;
-    if (navigator.clipboard) navigator.clipboard.writeText(link);
-    UI.toast('Link da ONG copiado!', 'info');
+    const nome = (state.perfilOngAtual && state.perfilOngAtual.id === Number(ongId) && state.perfilOngAtual.nome)
+      || ((state.ongs || []).find((o) => o.id === Number(ongId)) || {}).nome || 'esta ONG';
+    abrirModal(`
+      <div class="p-6 text-center">
+        <div class="w-12 h-12 mx-auto rounded-full bg-primary-light flex items-center justify-center text-primary mb-2"><i class="ph ph-qr-code text-2xl"></i></div>
+        <h3 class="text-lg font-montserrat font-bold text-textDark">Compartilhar ${UI.esc(nome)}</h3>
+        <p class="text-xs text-textGrey mt-1 mb-4">Aponte a câmera do celular para abrir o perfil desta ONG.</p>
+        <div id="qr-box" class="mx-auto w-[232px] h-[232px] bg-white rounded-2xl border border-gray-100 shadow-sm flex items-center justify-center p-2"></div>
+        <div class="flex items-center gap-2 bg-background rounded-xl p-2.5 mt-4">
+          <code class="text-xs text-textGrey truncate flex-1 text-left">${UI.esc(link)}</code>
+          <button id="qr-copiar" class="text-primary font-bold text-xs flex-shrink-0 whitespace-nowrap"><i class="ph ph-copy"></i> Copiar</button>
+        </div>
+        ${navigator.share ? '<button id="qr-share" class="w-full mt-3 py-3 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl flex items-center justify-center gap-2"><i class="ph ph-share-network"></i> Compartilhar link</button>' : ''}
+      </div>`, 'max-w-xs');
+    const box = $('#qr-box');
+    if (window.QRCode && box) {
+      try { new QRCode(box, { text: link, width: 214, height: 214, colorDark: '#0f1720', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M }); }
+      catch { box.innerHTML = '<i class="ph ph-qr-code text-7xl text-textGrey"></i>'; }
+    } else if (box) { box.innerHTML = '<p class="text-xs text-textGrey px-4">QR indisponível (sem internet). Use o link abaixo.</p>'; }
+    $('#qr-copiar').addEventListener('click', () => { navigator.clipboard?.writeText(link); UI.toast('Link copiado!', 'ok'); });
+    const sh = $('#qr-share');
+    if (sh) sh.addEventListener('click', async () => { try { await navigator.share({ title: 'Connect ONG', text: 'Conheça ' + nome + ' no Connect ONG 💚', url: link }); } catch {} });
   }
 
   async function carregarFavIds(force) {
