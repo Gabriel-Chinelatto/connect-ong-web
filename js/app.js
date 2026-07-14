@@ -762,6 +762,50 @@ const App = (() => {
   const dora = { conv: null, anexo: null };
   function doraNova() { dora.conv = { id: 'c' + (doraSeq++) + '_' + (DoraStore.listar().length), titulo: '', fixado: false, atualizadoEm: 0, mensagens: [] }; dora.anexo = null; }
 
+  // ★ EXCLUSIVO DA WEB — VOZ DA DORA (Web Speech API): falar (ditado) e ouvir (TTS).
+  const VOZ = {
+    rec: null, ouvindo: false, falar: false,
+    suportaRec: 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window,
+    suportaFala: 'speechSynthesis' in window,
+  };
+  function falarTexto(txt) {
+    if (!VOZ.falar || !VOZ.suportaFala || !txt) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(String(txt).slice(0, 600));
+      u.lang = 'pt-BR'; u.rate = 1.03; u.pitch = 1.05;
+      const vs = speechSynthesis.getVoices();
+      const vpt = vs.find((v) => /pt-BR/i.test(v.lang)) || vs.find((v) => /pt/i.test(v.lang));
+      if (vpt) u.voice = vpt;
+      speechSynthesis.speak(u);
+    } catch { /* silencioso */ }
+  }
+  function ouvirDora(btn) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { UI.toast('Seu navegador não suporta ditado por voz.', 'aviso'); return; }
+    if (VOZ.ouvindo && VOZ.rec) { try { VOZ.rec.stop(); } catch {} return; }
+    const rec = new SR();
+    rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    VOZ.rec = rec; VOZ.ouvindo = true;
+    btn.classList.add('ouvindo');
+    const sub = $('#dora-sub'); const subOrig = sub ? sub.textContent : '';
+    if (sub) sub.textContent = 'Ouvindo… fale agora 🎙️';
+    const inp = $('#dora-input');
+    rec.onresult = (e) => {
+      let txt = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) txt += e.results[i][0].transcript;
+      if (inp) inp.value = txt;
+    };
+    rec.onerror = (e) => { if (e && e.error === 'not-allowed') UI.toast('Permita o microfone para falar com a Dora.', 'aviso'); };
+    rec.onend = () => {
+      VOZ.ouvindo = false; VOZ.rec = null;
+      btn.classList.remove('ouvindo');
+      if (sub) sub.textContent = subOrig || 'Assistente de doações • IA';
+      if (inp && inp.value.trim()) { const f = $('#dora-form'); if (f) f.requestSubmit(); }
+    };
+    try { rec.start(); } catch { VOZ.ouvindo = false; btn.classList.remove('ouvindo'); if (sub) sub.textContent = subOrig; }
+  }
+
   async function viewDora() {
     if (!dora.conv) { const ult = DoraStore.listar()[0]; if (ult) dora.conv = ult; else doraNova(); }
     root().innerHTML = `
@@ -774,7 +818,8 @@ const App = (() => {
           <div class="flex items-center gap-3 p-4 border-b border-gray-100">
             <button id="dora-menu" class="md:hidden w-9 h-9 rounded-lg bg-background flex items-center justify-center"><i class="ph ph-list text-lg"></i></button>
             <div class="w-10 h-10 rounded-full bg-primary-light flex items-center justify-center overflow-hidden flex-shrink-0"><img src="assets/img/dora_mascote.svg" alt="Dora" class="w-full h-full object-contain" onerror="this.replaceWith(Object.assign(document.createElement('i'),{className:'ph-fill ph-sparkle text-xl text-primary'}))"></div>
-            <div class="flex-1 min-w-0"><p class="font-montserrat font-bold text-textDark truncate">Dora</p><p class="text-xs text-textGrey">Assistente de doações • IA</p></div>
+            <div class="flex-1 min-w-0"><p class="font-montserrat font-bold text-textDark truncate">Dora</p><p id="dora-sub" class="text-xs text-textGrey truncate">Assistente de doações • IA</p></div>
+            <button type="button" id="dora-tts" title="Ouvir as respostas da Dora" class="w-9 h-9 rounded-lg bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-speaker-simple-high text-lg"></i></button>
             <button id="dora-nova2" class="md:hidden w-9 h-9 rounded-lg bg-background flex items-center justify-center"><i class="ph ph-plus text-lg"></i></button>
           </div>
           <div id="dora-msgs" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
@@ -783,6 +828,7 @@ const App = (() => {
             <button type="button" id="dora-anexo-btn" class="w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-image text-xl"></i></button>
             <input id="dora-anexo" type="file" accept="image/*" class="hidden">
             <input id="dora-input" placeholder="Pergunte à Dora o que doar, para quem…" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
+            <button type="button" id="dora-mic" title="Falar com a Dora" class="dora-mic w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-microphone text-xl"></i></button>
             <button class="w-12 h-12 bg-primary hover:bg-primary-dark text-white rounded-2xl flex items-center justify-center flex-shrink-0"><i class="ph-fill ph-paper-plane-right text-xl"></i></button>
           </form>
         </div>
@@ -802,6 +848,25 @@ const App = (() => {
       $('#dora-rm-anexo').addEventListener('click', () => { dora.anexo = null; pv.classList.add('hidden'); pv.innerHTML = ''; });
       e.target.value = '';
     });
+    // Voz (Web Speech API) — recurso exclusivo da web
+    const mic = $('#dora-mic');
+    if (mic) {
+      if (!VOZ.suportaRec) mic.classList.add('hidden');
+      else mic.addEventListener('click', () => ouvirDora(mic));
+    }
+    const tts = $('#dora-tts');
+    if (tts) {
+      if (!VOZ.suportaFala) tts.classList.add('hidden');
+      else { pintarTts(tts); tts.addEventListener('click', () => { VOZ.falar = !VOZ.falar; if (!VOZ.falar) window.speechSynthesis && speechSynthesis.cancel(); pintarTts(tts); UI.toast(VOZ.falar ? 'Dora vai falar as respostas 🔊' : 'Voz da Dora desativada', 'info'); }); }
+    }
+  }
+  function pintarTts(btn) {
+    const on = VOZ.falar;
+    btn.classList.toggle('bg-primary', on);
+    btn.classList.toggle('text-white', on);
+    btn.classList.toggle('bg-background', !on);
+    btn.classList.toggle('text-textGrey', !on);
+    btn.querySelector('i').className = `ph ph-speaker-simple-${on ? 'high' : 'x'} text-lg`;
   }
   function itemConversa(c) {
     const ativo = dora.conv && c.id === dora.conv.id;
@@ -888,6 +953,7 @@ const App = (() => {
       dora.conv.mensagens.push({ papel: 'assistente', texto: txt, sugestoes: resp && resp.sugestoes || [], modoRegras: resp && resp.modo === 'regras' });
       DoraStore.salvar(dora.conv);
       renderDoraLista(); renderDoraMsgs();
+      falarTexto(txt); // lê a resposta em voz alta se o TTS estiver ligado
     } catch (err) {
       $('#dora-typing')?.remove();
       dora.conv.mensagens.push({ papel: 'assistente', texto: 'Ops: ' + err.message });
