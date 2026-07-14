@@ -760,7 +760,8 @@ const App = (() => {
   };
   let doraSeq = 1;
   const dora = { conv: null, anexo: null };
-  function doraNova() { dora.conv = { id: 'c' + (doraSeq++) + '_' + (DoraStore.listar().length), titulo: '', fixado: false, atualizadoEm: 0, mensagens: [] }; dora.anexo = null; }
+  // id único (evita colidir/sobrescrever conversas entre recarregamentos).
+  function doraNova() { dora.conv = { id: 'c' + (doraSeq++) + '_' + Math.random().toString(36).slice(2, 9), titulo: '', fixado: false, atualizadoEm: 0, mensagens: [] }; dora.anexo = null; }
 
   // ★ EXCLUSIVO DA WEB — VOZ DA DORA (Web Speech API): falar (ditado) e ouvir (TTS).
   const VOZ = {
@@ -780,31 +781,39 @@ const App = (() => {
       speechSynthesis.speak(u);
     } catch { /* silencioso */ }
   }
-  function ouvirDora(btn) {
+  // Segurar para falar: mantém o reconhecimento ativo enquanto o botão está
+  // pressionado (continuous); ao soltar, para e deixa a transcrição no campo
+  // (sem enviar sozinho — a pessoa revisa e envia).
+  function iniciarVoz(btn) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { UI.toast('Seu navegador não suporta ditado por voz.', 'aviso'); return; }
-    if (VOZ.ouvindo && VOZ.rec) { try { VOZ.rec.stop(); } catch {} return; }
+    if (VOZ.ouvindo) return;
     const rec = new SR();
-    rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
-    VOZ.rec = rec; VOZ.ouvindo = true;
+    rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
+    VOZ.rec = rec; VOZ.ouvindo = true; VOZ._final = '';
     btn.classList.add('ouvindo');
-    const sub = $('#dora-sub'); const subOrig = sub ? sub.textContent : '';
-    if (sub) sub.textContent = 'Ouvindo… fale agora 🎙️';
+    const sub = $('#dora-sub'); VOZ._subOrig = sub ? sub.textContent : '';
+    if (sub) sub.textContent = 'Ouvindo… segure e fale 🎙️';
     const inp = $('#dora-input');
+    if (inp) VOZ._base = inp.value ? inp.value.trim() + ' ' : '';
     rec.onresult = (e) => {
-      let txt = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) txt += e.results[i][0].transcript;
-      if (inp) inp.value = txt;
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) VOZ._final += t; else interim += t;
+      }
+      if (inp) inp.value = (VOZ._base + VOZ._final + interim).replace(/\s+/g, ' ').trimStart();
     };
-    rec.onerror = (e) => { if (e && e.error === 'not-allowed') UI.toast('Permita o microfone para falar com a Dora.', 'aviso'); };
+    rec.onerror = (e) => { if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) UI.toast('Permita o microfone para falar com a Dora.', 'aviso'); };
     rec.onend = () => {
       VOZ.ouvindo = false; VOZ.rec = null;
       btn.classList.remove('ouvindo');
-      if (sub) sub.textContent = subOrig || 'Assistente de doações • IA';
-      if (inp && inp.value.trim()) { const f = $('#dora-form'); if (f) f.requestSubmit(); }
+      const s = $('#dora-sub'); if (s) s.textContent = VOZ._subOrig || 'Assistente de doações • IA';
+      if (inp) { inp.value = (inp.value || '').trim(); inp.focus(); }
     };
-    try { rec.start(); } catch { VOZ.ouvindo = false; btn.classList.remove('ouvindo'); if (sub) sub.textContent = subOrig; }
+    try { rec.start(); } catch { VOZ.ouvindo = false; btn.classList.remove('ouvindo'); if (sub) sub.textContent = VOZ._subOrig; }
   }
+  function pararVoz() { if (VOZ.rec) { try { VOZ.rec.stop(); } catch {} } }
 
   async function viewDora() {
     if (!dora.conv) { const ult = DoraStore.listar()[0]; if (ult) dora.conv = ult; else doraNova(); }
@@ -828,7 +837,7 @@ const App = (() => {
             <button type="button" id="dora-anexo-btn" class="w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-image text-xl"></i></button>
             <input id="dora-anexo" type="file" accept="image/*" class="hidden">
             <input id="dora-input" placeholder="Pergunte à Dora o que doar, para quem…" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
-            <button type="button" id="dora-mic" title="Falar com a Dora" class="dora-mic w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-microphone text-xl"></i></button>
+            <button type="button" id="dora-mic" title="Segure para falar" class="dora-mic w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-microphone text-xl"></i></button>
             <button class="w-12 h-12 bg-primary hover:bg-primary-dark text-white rounded-2xl flex items-center justify-center flex-shrink-0"><i class="ph-fill ph-paper-plane-right text-xl"></i></button>
           </form>
         </div>
@@ -852,7 +861,16 @@ const App = (() => {
     const mic = $('#dora-mic');
     if (mic) {
       if (!VOZ.suportaRec) mic.classList.add('hidden');
-      else mic.addEventListener('click', () => ouvirDora(mic));
+      else {
+        // Segurar para falar: pressiona = ouve; solta = para e deixa a transcrição no campo.
+        const iniciar = (e) => { e.preventDefault(); iniciarVoz(mic); };
+        const parar = (e) => { if (e) e.preventDefault(); pararVoz(); };
+        mic.addEventListener('pointerdown', iniciar);
+        mic.addEventListener('pointerup', parar);
+        mic.addEventListener('pointerleave', parar);
+        mic.addEventListener('pointercancel', parar);
+        mic.addEventListener('contextmenu', (e) => e.preventDefault());
+      }
     }
     const tts = $('#dora-tts');
     if (tts) {
@@ -1180,6 +1198,66 @@ const App = (() => {
     // src vem de dataset (o browser já decodificou as entidades) — re-escapar
     // ao reinjetar em innerHTML fecha o 2º salto do mesmo dado (anti-XSS).
     abrirModal(`<div class="bg-black flex items-center justify-center"><img src="${UI.esc(src)}" class="max-h-[85vh] w-auto object-contain"></div>`, 'max-w-3xl');
+  }
+
+  // =========================================================================
+  // ★ PÁGINA PÚBLICA DA ONG — link/QR compartilhado abre a ONG DIRETO (sem login)
+  // Usa /ongs/{id}/perfil-publico (endpoint público). Ações (doar/favoritar/chat)
+  // levam ao login. É a "porta de entrada" pública e compartilhável da web.
+  // =========================================================================
+  function mostrarLoginDaPublica() {
+    const el = $('#view-publico'); if (el) { el.hidden = true; el.innerHTML = ''; }
+    const vl = $('#view-login'); vl.hidden = false; vl.style.opacity = '1';
+    carregarStatsLogin();
+  }
+  async function abrirOngPublica(ongId) {
+    const el = $('#view-publico');
+    $('#view-login').hidden = true;
+    $('#view-app').hidden = true;
+    el.hidden = false;
+    el.innerHTML = `<div class="max-w-2xl mx-auto">${carregando('Carregando a ONG…')}</div>`;
+    const wire = () => ['pub-entrar', 'pub-entrar2'].forEach((id) => { const b = document.getElementById(id); if (b) b.addEventListener('click', mostrarLoginDaPublica); });
+    try {
+      const p = await API.perfilOng(ongId);
+      if (p.bloqueado) {
+        el.innerHTML = `<div class="max-w-lg mx-auto p-8">${vazio('ph-prohibit', 'Perfil indisponível', 'Esta ONG não está disponível no momento.')}<div class="text-center mt-4"><button id="pub-entrar" class="px-5 py-3 bg-primary text-white font-bold rounded-xl">Entrar no Connect ONG</button></div></div>`;
+        wire(); return;
+      }
+      const nv = NIVEL[p.nivelTransparencia] || {};
+      const capa = UI.fotoSrc(p.capaBase64);
+      const necAbertas = (p.necessidades || []).filter((n) => n.status === 'ABERTA');
+      const enderecoQ = encodeURIComponent((p.endereco || '') + ' ' + (p.cidade || ''));
+      el.innerHTML = `
+        <div class="min-h-full">
+          <header class="sticky top-0 z-10 backdrop-blur bg-background/90 border-b border-gray-100 px-5 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2"><div class="logo-slot w-9 h-9"></div><span class="font-montserrat font-black text-textDark">Connect <span class="text-primary">ONG</span></span></div>
+            <button id="pub-entrar" class="px-4 py-2 bg-primary hover:bg-primary-dark text-white font-bold text-sm rounded-xl">Entrar / Cadastrar</button>
+          </header>
+          <div class="h-40 md:h-56 relative ${capa ? '' : 'bg-gradient-to-r from-primary to-primary-dark'}" ${capa ? `style="background-image:url('${capa}');background-size:cover;background-position:center"` : ''}>${capa ? '<div class="absolute inset-0 bg-black/40"></div>' : ''}</div>
+          <div class="max-w-2xl mx-auto px-5 pb-24">
+            <div class="w-24 h-24 rounded-3xl border-4 border-white shadow -mt-12 relative bg-white">${UI.avatar(p.nome, 'w-full h-full text-3xl rounded-2xl')}${p.verificada ? '<span class="absolute -bottom-1 -right-1 w-7 h-7 bg-white rounded-full flex items-center justify-center"><i class="ph-fill ph-seal-check text-primary text-lg"></i></span>' : ''}</div>
+            <h1 class="text-3xl font-montserrat font-extrabold text-textDark mt-3">${UI.esc(p.nome)}</h1>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-textGrey">
+              <span><i class="ph ph-map-pin"></i> ${UI.esc(p.cidade || 'Brasil')}</span>
+              <span>${UI.estrelas(p.notaMedia)} ${(Number(p.notaMedia) || 0).toFixed(1)} (${p.totalAvaliacoes || 0})</span>
+              ${p.nivelTransparencia ? `<span class="px-2.5 py-1 rounded-full text-xs font-bold ${nv.cls || 'bg-gray-100'}">${nv.emoji || ''} ${p.nivelTransparencia}</span>` : ''}
+            </div>
+            <div class="mt-5 bg-primary text-white rounded-2xl p-5 flex items-center justify-between gap-4 shadow-card">
+              <div><p class="font-montserrat font-bold text-lg">Quer ajudar esta ONG?</p><p class="text-white/80 text-sm">Entre no Connect ONG para doar, conversar e favoritar.</p></div>
+              <button id="pub-entrar2" class="flex-shrink-0 px-5 py-3 bg-white text-primary font-bold rounded-xl hover:bg-white/90">Começar</button>
+            </div>
+            ${p.descricao ? `<div class="mt-6"><h2 class="font-montserrat font-bold text-textDark mb-1">Sobre</h2><p class="text-textGrey leading-relaxed whitespace-pre-line">${UI.esc(p.descricao)}</p></div>` : ''}
+            ${necAbertas.length ? `<div class="mt-6"><h2 class="font-montserrat font-bold text-textDark mb-3">Precisa de</h2><div class="grid grid-cols-1 sm:grid-cols-2 gap-2">${necAbertas.slice(0, 8).map((n) => `<div class="flex items-center gap-3 p-3 bg-white rounded-xl border border-gray-100"><span class="text-2xl">${UI.cat(n.categoria).emoji}</span><span class="flex-1 min-w-0"><span class="block font-bold text-sm text-textDark truncate">${UI.esc(n.titulo)}</span><span class="block text-xs text-textGrey truncate">${UI.esc(n.descricao || '')}</span></span>${n.urgente ? '<span class="text-xs font-bold text-accent">Urgente</span>' : ''}</div>`).join('')}</div></div>` : ''}
+            ${(p.telefone || p.email || p.endereco) ? `<div class="mt-6"><h2 class="font-montserrat font-bold text-textDark mb-2">Contato</h2><div class="space-y-1 text-sm text-textGrey">${p.telefone ? `<p><i class="ph ph-phone text-primary"></i> ${UI.esc(p.telefone)}</p>` : ''}${p.email ? `<p><i class="ph ph-envelope text-primary"></i> ${UI.esc(p.email)}</p>` : ''}${p.endereco ? `<p><i class="ph ph-map-pin-line text-primary"></i> ${UI.esc(p.endereco)}</p>` : ''}</div>${p.endereco ? `<a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${enderecoQ}" class="inline-flex items-center gap-2 mt-3 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-bold text-textDark hover:border-primary"><i class="ph ph-map-pin text-primary"></i> Abrir no Maps</a>` : ''}</div>` : ''}
+            <p class="text-center text-xs text-textGrey mt-10">Connect ONG • Conectando quem quer ajudar a quem precisa</p>
+          </div>
+        </div>`;
+      montarLogos();
+      wire();
+    } catch (e) {
+      el.innerHTML = `<div class="max-w-lg mx-auto p-8">${erroBox('Não foi possível carregar esta ONG. ' + e.message)}<div class="text-center mt-4"><button id="pub-entrar" class="px-5 py-3 bg-primary text-white font-bold rounded-xl">Entrar no Connect ONG</button></div></div>`;
+      wire();
+    }
   }
 
   function compartilharOng(ongId) {
@@ -2888,6 +2966,12 @@ const App = (() => {
     $('#btn-perfil').addEventListener('click', () => { irPara('config'); });
     $('#btn-sino').addEventListener('click', abrirNotificacoes);
     $('#btn-buscar').addEventListener('click', abrirCmdk);
+    // Logo fixo da sidebar: volta ao Início e rola o conteúdo ao topo.
+    $('#sidebar-logo').addEventListener('click', () => {
+      irPara('inicio');
+      const m = document.querySelector('#view-app main');
+      if (m) m.scrollTo({ top: 0, behavior: 'smooth' });
+    });
 
     // Atalho global do Command palette (Ctrl/Cmd + K) — recurso exclusivo da web.
     document.addEventListener('keydown', (e) => {
@@ -2947,7 +3031,12 @@ const App = (() => {
     ligarCliques();
     registrarPWA();
     if (API.logado()) { $('#view-login').hidden = true; $('#view-login').style.opacity = '0'; $('#view-app').hidden = false; aoEntrar(); }
-    else { carregarStatsLogin(); }
+    else {
+      // Link/QR público de ONG: abre a página pública da ONG (sem exigir login).
+      const mo = (location.hash || '').match(/^#\/ong\/(\d+)/);
+      if (mo) abrirOngPublica(Number(mo[1]));
+      else carregarStatsLogin();
+    }
   }
 
   return { init };
