@@ -1,0 +1,19 @@
+# Configuração de deploy no Netlify (grátis, endereço fixo tipo connectong.netlify.app).
+#
+# Publica os arquivos estáticos do site E encaminha a API para o backend no
+# Render, na MESMA ORIGEM do site -> sem CORS, e a Dora/QR/PWA funcionam por HTTPS.
+#
+# ⚠️ TROQUE a URL do backend abaixo pela do SEU serviço no Render. Se você nomear
+# o serviço do Render como "connect-ong-api", a URL já bate com a linha abaixo.
+
+[build]
+  publish = "."
+  command = ""
+
+# Proxy de mesma origem: tudo que NÃO for arquivo estático do site
+# (index.html, css/, js/, assets/, manifest.json, sw.js) vai para o backend.
+[[redirects]]
+  from = "/*"
+  to = "https://connect-ong-api.onrender.com/:splat"
+  status = 200
+  force = false
