@@ -1,0 +1,36 @@
+# Mantém o backend do Render acordado.
+#
+# O plano gratuito do Render "dorme" após ~15 min sem tráfego e leva ~30-60s para
+# acordar na visita seguinte. Este job chama um endpoint público leve a cada ~10
+# minutos para o serviço nunca dormir — assim a apresentação/feira nunca pega a
+# tela lenta.
+#
+# Repositório é público => GitHub Actions é gratuito e ilimitado.
+# Para desligar: Actions > "Manter backend acordado" > "..." > Disable workflow.
+
+name: Manter backend acordado
+
+on:
+  schedule:
+    # A cada 10 minutos. Obs.: o agendador do GitHub pode atrasar alguns minutos
+    # em horários de pico (não é garantia de precisão).
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}   # permite rodar na mão pelo botão "Run workflow"
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Acordar a API (Render)
+        run: |
+          URL="https://connect-ong-api.onrender.com/publico/estatisticas"
+          echo "Pingando $URL"
+          # --max-time 120: se estiver dormindo, espera o cold start terminar.
+          code=$(curl -s -o /tmp/resp.txt -w "%{http_code}" --max-time 120 "$URL" || echo "000")
+          echo "HTTP $code"
+          head -c 200 /tmp/resp.txt || true
+          echo ""
+          if [ "$code" != "200" ]; then
+            echo "::warning::API respondeu $code (pode estar reiniciando/deployando)"
+          fi
