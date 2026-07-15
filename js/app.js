@@ -97,7 +97,12 @@ const App = (() => {
       ${s}
       <p class="hidden lg:flex items-center gap-1 text-[11px] font-bold text-primary/70 uppercase tracking-wider px-4 mt-4 mb-1"><i class="ph-fill ph-globe-hemisphere-west"></i> Exclusivo da web</p>
       <hr class="lg:hidden border-gray-100 my-2">
-      ${w}`;
+      ${w}
+      <button id="btn-instalar" title="Instalar o Connect ONG no seu aparelho"
+        class="nav-btn w-full flex items-center gap-4 px-4 py-3 rounded-xl font-medium text-textGrey hover:bg-gray-50 hover:text-primary transition-colors">
+        <i class="ph ph-download-simple text-2xl"></i><span class="hidden lg:block">Instalar app</span>
+      </button>
+      <p class="hidden lg:block text-[10px] font-semibold text-textGrey/50 px-4 mt-1">Connect ONG ${KVERSOES[0].numero}</p>`;
     // Nav inferior (celular): só as rotas principais
     $('#nav-mobile').innerHTML = ROTAS.filter((r) => r.g === 'p').map((r) => `
       <button data-rota="${r.id}" data-navm="${r.id}" class="flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-xl text-textGrey">
@@ -2179,19 +2184,36 @@ const App = (() => {
       state.ongs = ongs;
       const comCoord = [], semCoord = [];
       for (const o of ongs) { const c = coords[chaveCidade(o.cidade)]; if (c) comCoord.push({ o, c }); else semCoord.push(o); }
+      const nVerif = comCoord.filter(({ o }) => o.verificada).length;
+      const nCidades = new Set(comCoord.map(({ o }) => chaveCidade(o.cidade))).size;
+      const chip = (icon, txt, cls) => `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm text-xs font-bold ${cls || 'text-textDark'}"><i class="ph-fill ${icon}"></i> ${txt}</span>`;
       root().innerHTML = `
-        <p class="text-textGrey font-medium mb-4 slide-up">${comCoord.length} ONG(s) no mapa — clique num marcador para abrir o perfil.${semCoord.length ? ` <span class="text-textGrey/70">(${semCoord.length} sem localização cadastrada)</span>` : ''}</p>
+        <div class="flex flex-wrap items-center gap-2 mb-4 slide-up">
+          ${chip('ph-map-pin-line', `${comCoord.length} ONGs no mapa`, 'text-primary')}
+          ${chip('ph-seal-check', `${nVerif} verificadas`, 'text-accent')}
+          ${chip('ph-buildings', `${nCidades} cidade(s)`)}
+          <span class="text-xs text-textGrey ml-1">Clique num marcador para abrir o perfil.</span>
+        </div>
         <div class="relative rounded-3xl overflow-hidden shadow-card border border-gray-100 slide-up" style="height:calc(100vh - 230px);min-height:440px">
           <div id="mapa-leaflet" class="absolute inset-0"></div>
-          <div class="absolute top-3 left-3 z-[500] w-[min(20rem,70%)]">
+          <!-- Busca flutuante (o zoom foi para a direita, sem colidir) -->
+          <div class="absolute top-3 left-3 z-[500] w-[min(22rem,75%)]">
             <div class="relative">
-              <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-textGrey"></i>
-              <input id="mapa-busca" value="${UI.esc(mapaState.termo)}" placeholder="Filtrar por nome ou cidade…" class="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white/95 shadow-md border border-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+              <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-textGrey"></i>
+              <input id="mapa-busca" value="${UI.esc(mapaState.termo)}" placeholder="Filtrar por nome ou cidade…"
+                class="w-full pl-10 pr-9 py-3 rounded-2xl bg-white/95 backdrop-blur shadow-lg border border-gray-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary">
+              <button id="mapa-limpar" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-textGrey hover:text-red-500" title="Limpar"><i class="ph ph-x-circle text-lg"></i></button>
             </div>
+            <p id="mapa-contador" class="hidden mt-2 inline-block px-2.5 py-1 rounded-full bg-textDark/80 text-white text-[11px] font-bold backdrop-blur"></p>
           </div>
+          <!-- Recentrar -->
+          <button id="mapa-recentrar" title="Ver todas as ONGs" class="absolute bottom-6 right-3 z-[500] w-11 h-11 rounded-xl bg-white/95 backdrop-blur shadow-lg border border-gray-100 text-primary hover:bg-primary hover:text-white transition-colors flex items-center justify-center">
+            <i class="ph-fill ph-crosshair-simple text-lg"></i>
+          </button>
         </div>
-        ${semCoord.length ? `<p class="text-xs text-textGrey mt-3">Sem localização no mapa: ${semCoord.map((o) => UI.esc(o.nome)).join(', ')}.</p>` : ''}`;
-      const map = L.map('mapa-leaflet', { zoomControl: true, scrollWheelZoom: true }).setView([-22.5, -47.4], 8);
+        ${semCoord.length ? `<p class="text-xs text-textGrey mt-3"><i class="ph ph-info"></i> Sem localização cadastrada (não aparecem no mapa): ${semCoord.map((o) => UI.esc(o.nome)).join(', ')}.</p>` : ''}`;
+      const map = L.map('mapa-leaflet', { zoomControl: false, scrollWheelZoom: true }).setView([-22.5, -47.4], 8);
+      L.control.zoom({ position: 'topright' }).addTo(map);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
       mapaState.instancia = map;
       const grupo = L.featureGroup().addTo(map);
@@ -2211,9 +2233,22 @@ const App = (() => {
           pts.push([lat, lng]);
         }
         if (pts.length) { try { map.fitBounds(pts, { padding: [70, 70], maxZoom: 12 }); } catch {} }
+        // Contador de resultados + botão de limpar (só quando há filtro).
+        const cont = $('#mapa-contador'), lim = $('#mapa-limpar');
+        if (cont) {
+          if (t) {
+            cont.textContent = pts.length ? `${pts.length} resultado(s)` : 'Nenhuma ONG encontrada';
+            cont.classList.remove('hidden');
+          } else cont.classList.add('hidden');
+        }
+        if (lim) lim.classList.toggle('hidden', !t);
       }
       pintar(mapaState.termo);
       $('#mapa-busca').addEventListener('input', (e) => { mapaState.termo = e.target.value; pintar(e.target.value); });
+      $('#mapa-limpar').addEventListener('click', () => {
+        mapaState.termo = ''; const b = $('#mapa-busca'); if (b) { b.value = ''; b.focus(); } pintar('');
+      });
+      $('#mapa-recentrar').addEventListener('click', () => { pintar(mapaState.termo); });
       setTimeout(() => { try { map.invalidateSize(); } catch {} }, 200);
     } catch (e) { root().innerHTML = erroBox(e.message, 'mapa'); }
   }
@@ -2998,26 +3033,53 @@ const App = (() => {
   // ★ EXCLUSIVO DA WEB — PWA: service worker + botão "Instalar app"
   // =========================================================================
   let promptInstalar = null;
+  // true quando o app já está rodando instalado (janela própria).
+  function appInstalado() {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator.standalone === true || localStorage.getItem('co_instalado') === '1';
+  }
+  function pintarBotaoInstalar() {
+    const btn = $('#btn-instalar'); if (!btn) return;
+    const ic = btn.querySelector('i'); const tx = btn.querySelector('span');
+    if (appInstalado()) {
+      ic.className = 'ph-fill ph-check-circle text-2xl';
+      if (tx) tx.textContent = 'App baixado';
+      btn.classList.add('text-primary', 'font-bold');
+      btn.title = 'O Connect ONG já está instalado neste aparelho';
+    } else {
+      ic.className = 'ph ph-download-simple text-2xl';
+      if (tx) tx.textContent = 'Instalar app';
+      btn.classList.remove('text-primary', 'font-bold');
+    }
+  }
   function registrarPWA() {
     if ('serviceWorker' in navigator) {
       // Registra após o load para não competir com o carregamento inicial.
       window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
     }
-    const btn = $('#btn-instalar');
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault(); promptInstalar = e;
-      if (btn) btn.hidden = false;
-    });
+    window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); promptInstalar = e; });
     window.addEventListener('appinstalled', () => {
-      promptInstalar = null; if (btn) btn.hidden = true;
-      UI.toast('Connect ONG instalado! 🎉', 'ok');
+      promptInstalar = null;
+      localStorage.setItem('co_instalado', '1');
+      pintarBotaoInstalar();
+      UI.toast('Connect ONG instalado! 🎉 Procure o ícone no seu aparelho.', 'ok');
     });
+    const btn = $('#btn-instalar');
     if (btn) btn.addEventListener('click', async () => {
-      if (!promptInstalar) return;
-      promptInstalar.prompt();
-      try { await promptInstalar.userChoice; } catch {}
-      promptInstalar = null; btn.hidden = true;
+      if (appInstalado()) { UI.toast('O app já está instalado neste aparelho ✓', 'info'); return; }
+      if (promptInstalar) {
+        promptInstalar.prompt();
+        try {
+          const r = await promptInstalar.userChoice;
+          if (r && r.outcome === 'accepted') { localStorage.setItem('co_instalado', '1'); pintarBotaoInstalar(); }
+        } catch {}
+        promptInstalar = null;
+        return;
+      }
+      // Sem prompt disponível: explica como instalar pelo próprio navegador.
+      UI.toast('Para instalar: toque no menu do navegador (⋮) → "Instalar app" / "Adicionar à tela inicial".', 'info');
     });
+    pintarBotaoInstalar();
   }
 
   // =========================================================================
