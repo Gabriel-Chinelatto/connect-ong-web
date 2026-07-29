@@ -4,7 +4,7 @@
    offline e instalar. NÃO intercepta a API (outra origem, :8080) nem os CDNs —
    deixa passar direto. Não intercepta POST/PUT (login, doações, mensagens).
    ========================================================================= */
-const CACHE = 'connectong-v3';
+const CACHE = 'connectong-v4';
 const SHELL = [
   './',
   './index.html',

@@ -3149,8 +3149,22 @@ const App = (() => {
   }
   function registrarPWA() {
     if ('serviceWorker' in navigator) {
-      // Registra após o load para não competir com o carregamento inicial.
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+      // Quando um SW NOVO assume o controle da página, recarrega UMA vez. Isso
+      // garante que, após um deploy, o usuário nunca fique preso numa versão
+      // velha em cache (causa clássica de "travou / não atualizou").
+      let recarregando = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (recarregando) return;
+        recarregando = true;
+        location.reload();
+      });
+      // Registra após o load para não competir com o carregamento inicial e
+      // força a checagem de atualização a cada abertura (sw.js é leve).
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then((reg) => { try { reg.update(); } catch {} })
+          .catch(() => {});
+      });
     }
     window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); promptInstalar = e; });
     window.addEventListener('appinstalled', () => {
