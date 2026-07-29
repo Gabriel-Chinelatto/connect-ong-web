@@ -1089,7 +1089,11 @@ const App = (() => {
       const nv = NIVEL[p.nivelTransparencia] || {};
       const necAbertas = (p.necessidades || []).filter((n) => n.status === 'ABERTA');
       const capa = UI.fotoSrc(p.capaBase64);
-      const enderecoQ = encodeURIComponent((p.endereco || '') + ' ' + (p.cidade || ''));
+      // Maps: usa a COORDENADA EXATA quando a ONG a cadastrou (mais preciso);
+      // senão cai no endereço/cidade em texto.
+      const enderecoQ = (Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
+        ? `${p.latitude},${p.longitude}`
+        : encodeURIComponent((p.endereco || '') + ' ' + (p.cidade || ''));
       $('#modal-card').innerHTML = `
         <!-- Capa -->
         <div class="h-32 rounded-t-3xl relative overflow-hidden ${capa ? '' : 'bg-gradient-to-r from-primary to-primary-dark'}"
@@ -1276,7 +1280,9 @@ const App = (() => {
       const nv = NIVEL[p.nivelTransparencia] || {};
       const capa = UI.fotoSrc(p.capaBase64);
       const necAbertas = (p.necessidades || []).filter((n) => n.status === 'ABERTA');
-      const enderecoQ = encodeURIComponent((p.endereco || '') + ' ' + (p.cidade || ''));
+      const enderecoQ = (Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
+        ? `${p.latitude},${p.longitude}`
+        : encodeURIComponent((p.endereco || '') + ' ' + (p.cidade || ''));
       el.innerHTML = `
         <div class="min-h-full">
           <header class="sticky top-0 z-10 backdrop-blur bg-background/90 border-b border-gray-100 px-5 py-3 flex items-center justify-between">
@@ -2250,7 +2256,15 @@ const App = (() => {
       const [ongs, coords] = await Promise.all([API.ongs(), coordsCidades()]);
       state.ongs = ongs;
       const comCoord = [], semCoord = [];
-      for (const o of ongs) { const c = coords[chaveCidade(o.cidade)]; if (c) comCoord.push({ o, c }); else semCoord.push(o); }
+      for (const o of ongs) {
+        // 1º) coordenada EXATA cadastrada pela ONG (autocomplete de mapa no
+        // painel). 2º) fallback: centro da cidade (geocoder offline). 3º) fora
+        // do mapa se nao houver nem cidade conhecida.
+        const temExata = Number.isFinite(o.latitude) && Number.isFinite(o.longitude);
+        if (temExata) { comCoord.push({ o, c: [o.latitude, o.longitude], exata: true }); continue; }
+        const c = coords[chaveCidade(o.cidade)];
+        if (c) comCoord.push({ o, c, exata: false }); else semCoord.push(o);
+      }
       const nVerif = comCoord.filter(({ o }) => o.verificada).length;
       const nCidades = new Set(comCoord.map(({ o }) => chaveCidade(o.cidade))).size;
       const chip = (icon, txt, cls) => `<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-gray-100 shadow-sm text-xs font-bold ${cls || 'text-textDark'}"><i class="ph-fill ${icon}"></i> ${txt}</span>`;
@@ -2297,14 +2311,21 @@ const App = (() => {
         grupo.clearLayers();
         const t = (termo || '').trim().toLowerCase();
         const contagem = {}; const pts = [];
-        for (const { o, c } of comCoord) {
+        for (const { o, c, exata } of comCoord) {
           if (t && !(o.nome + ' ' + (o.cidade || '')).toLowerCase().includes(t)) continue;
-          const k = chaveCidade(o.cidade);
-          const n = contagem[k] = (contagem[k] || 0);
-          contagem[k] = n + 1;
-          // Dispersão determinística (espiral) para ONGs na mesma cidade.
-          const ang = n * 2.399, raio = n ? 0.018 + n * 0.007 : 0;
-          const lat = c[0] + Math.sin(ang) * raio, lng = c[1] + Math.cos(ang) * raio;
+          let lat, lng;
+          if (exata) {
+            // Local exato da ONG: usa a coordenada cadastrada, sem dispersão.
+            lat = c[0]; lng = c[1];
+          } else {
+            // Fallback por cidade: dispersão determinística (espiral) para as
+            // ONGs que compartilham o mesmo centro de cidade não se sobreporem.
+            const k = chaveCidade(o.cidade);
+            const n = contagem[k] = (contagem[k] || 0);
+            contagem[k] = n + 1;
+            const ang = n * 2.399, raio = n ? 0.018 + n * 0.007 : 0;
+            lat = c[0] + Math.sin(ang) * raio; lng = c[1] + Math.cos(ang) * raio;
+          }
           L.marker([lat, lng], { icon: pinOng(o) }).addTo(grupo).bindPopup(popupOng(o), { minWidth: 210 });
           pts.push([lat, lng]);
         }
