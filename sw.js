@@ -63,17 +63,15 @@ self.addEventListener('fetch', (e) => {
   // ANTIGAS da API (cache-first) e o app mostraria dados desatualizados.
   if (url.origin !== self.location.origin || !ehEstatico(url)) return;
 
-  // Apenas os assets do app: cache primeiro (rápido/offline), atualiza em 2º plano.
+  // Assets do app: REDE PRIMEIRO (assim, depois de um deploy, a 1ª visita já
+  // pega o app.js/css novos — sem precisar recarregar 2x); offline cai no cache.
   e.respondWith(
-    caches.match(req).then((cached) => {
-      const rede = fetch(req).then((resp) => {
-        if (resp && resp.status === 200) {
-          const copy = resp.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-        }
-        return resp;
-      }).catch(() => cached);
-      return cached || rede;
-    })
+    fetch(req).then((resp) => {
+      if (resp && resp.status === 200) {
+        const copy = resp.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+      }
+      return resp;
+    }).catch(() => caches.match(req))
   );
 });

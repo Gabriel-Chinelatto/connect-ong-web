@@ -609,12 +609,13 @@ const App = (() => {
     </div>`;
   }
   function abrirReacao(mensagemId) {
-    abrirModal(`<div class="p-6 text-center">
+    // Camada por cima do chat (não destrói o modal do chat nem para o poller).
+    const cam = abrirCamada(`<div class="p-6 text-center">
       <h3 class="font-bold text-textDark mb-4">Reagir</h3>
       <div class="flex justify-center gap-3">${Object.entries(REACOES).map(([cod, em]) => `<button data-emoji="${cod}" class="text-3xl hover:scale-125 transition-transform">${em}</button>`).join('')}</div>
     </div>`, 'max-w-xs');
-    $('#modal-card').querySelectorAll('[data-emoji]').forEach((b) => b.addEventListener('click', async () => {
-      try { await API.reagir(Number(mensagemId), b.dataset.emoji); fecharModal(); }
+    cam.el.querySelectorAll('[data-emoji]').forEach((b) => b.addEventListener('click', async () => {
+      try { await API.reagir(Number(mensagemId), b.dataset.emoji); cam.fechar(); }
       catch (e) { UI.toast(e.message, 'erro'); }
     }));
   }
@@ -1243,9 +1244,10 @@ const App = (() => {
   }
 
   function verImagem(src) {
+    // Camada por cima (não destrói o chat/modal de baixo ao ampliar a imagem).
     // src vem de dataset (o browser já decodificou as entidades) — re-escapar
     // ao reinjetar em innerHTML fecha o 2º salto do mesmo dado (anti-XSS).
-    abrirModal(`<div class="bg-black flex items-center justify-center"><img src="${UI.esc(src)}" class="max-h-[85vh] w-auto object-contain"></div>`, 'max-w-3xl');
+    abrirCamada(`<div class="bg-black rounded-2xl flex items-center justify-center"><img src="${UI.esc(src)}" class="max-h-[85vh] w-auto object-contain rounded-2xl"></div>`, 'max-w-3xl');
   }
 
   // =========================================================================
@@ -1355,11 +1357,13 @@ const App = (() => {
       // Repinta a tela/modal aberto
       if (state.rota === 'ongs' && state.ongs) pintarOngs(state.ongs);
       if (state.rota === 'favoritos') viewFavoritos();
-      // Atualiza estrela dentro do modal se aberto
+      // Atualiza estrela onde estiver (card, perfil) preservando o tamanho.
       document.querySelectorAll(`[data-fav="${id}"]`).forEach((b) => {
         const on = state.favIds.has(id);
         const ic = b.querySelector('i');
-        if (ic) ic.className = `ph${on ? '-fill' : ''} ph-star` + (b.classList.contains('text-xl') ? ' text-xl' : '');
+        if (!ic) return;
+        const tam = (ic.className.match(/\btext-(xs|sm|base|lg|xl|\dxl)\b/) || [])[0] || 'text-lg';
+        ic.className = `ph${on ? '-fill' : ''} ph-star ${tam}`;
       });
     } catch (e) { UI.toast(e.message, 'erro'); }
   }
@@ -2188,6 +2192,24 @@ const App = (() => {
     $('#modal-root').innerHTML = '';
   }
 
+  // Camada SOBREPOSTA (z acima do modal): para pop-ups leves abertos DE DENTRO de
+  // um modal (reagir a mensagem, ampliar imagem do chat) sem destruir o modal de
+  // baixo (senão o chat/poller era descartado ao reagir). Cada camada é um
+  // elemento próprio anexado ao body; fechar só remove a si mesma.
+  function abrirCamada(htmlInterno, maxW = 'max-w-xs') {
+    const layer = document.createElement('div');
+    layer.className = 'fixed inset-0 z-[96] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 fade-in';
+    layer.innerHTML = `<div class="w-full ${maxW} max-h-[92vh] overflow-y-auto relative slide-up ${maxW.includes('3xl') ? '' : 'bg-white rounded-3xl shadow-2xl'}">
+        <button class="camada-x absolute top-3 right-3 z-10 w-9 h-9 bg-white/85 hover:bg-gray-100 rounded-full flex items-center justify-center text-textDark shadow"><i class="ph ph-x text-lg"></i></button>
+        ${htmlInterno}
+      </div>`;
+    document.body.appendChild(layer);
+    const fechar = () => layer.remove();
+    layer.querySelector('.camada-x').addEventListener('click', fechar);
+    layer.addEventListener('click', (e) => { if (e.target === layer) fechar(); });
+    return { el: layer, fechar };
+  }
+
   // =========================================================================
   // ★ EXCLUSIVO DA WEB — MAPA INTERATIVO DE ONGs (Leaflet + OpenStreetMap)
   // Geocodificação offline por cidade (assets/dados/cidades_coords.json).
@@ -2892,9 +2914,13 @@ const App = (() => {
     state.prefs = null; cfgDraft = null;
     document.body.classList.remove('tema-escuro', 'alto-contraste', 'fonte-dislexia', 'reduz-motion');
     document.documentElement.style.fontSize = '16px';
-    // Limpa caches em memória para não vazar dados entre sessões.
+    // Limpa TODOS os caches em memória para não vazar dados entre sessões
+    // (importante em máquina compartilhada / feira).
     state.interMap = null; state.necessidades = null; state.campanhas = null;
     state.ongs = null; state.favIds = null; matches.dados = null;
+    state.perfisComp = {}; state.minhasDoacoes = null; state.perfilOngAtual = null;
+    comparar.ids = []; devChat.mensagens = []; sinoUltimo = null;
+    fecharHoverOng();
     // Reseta os formulários (o botão ficava preso no spinner após um login).
     const fl = $('#form-login'), fc = $('#form-cadastro');
     fl.reset(); fc.reset();
@@ -3068,6 +3094,8 @@ const App = (() => {
     $('#btn-logout').addEventListener('click', fazerLogout);
     $('#btn-sino').addEventListener('click', abrirNotificacoes);
     $('#btn-buscar').addEventListener('click', abrirCmdk);
+    // Fecha o preview de hover da ONG ao rolar (senão fica "grudado" fora do card).
+    $('#view-app main').addEventListener('scroll', fecharHoverOng, { passive: true });
     // Logo fixo da sidebar: volta ao Início e rola o conteúdo ao topo.
     $('#sidebar-logo').addEventListener('click', () => {
       irPara('inicio');
