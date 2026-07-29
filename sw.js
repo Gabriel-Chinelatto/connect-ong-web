@@ -4,7 +4,7 @@
    offline e instalar. NÃO intercepta a API (outra origem, :8080) nem os CDNs —
    deixa passar direto. Não intercepta POST/PUT (login, doações, mensagens).
    ========================================================================= */
-const CACHE = 'connectong-v2';
+const CACHE = 'connectong-v3';
 const SHELL = [
   './',
   './index.html',
@@ -38,18 +38,32 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// Só os ARQUIVOS do app são cacheáveis. O resto do mesmo domínio é a API
+// (o Netlify faz proxy same-origin: /ongs, /publico/*, /necessidades... vão pro
+// backend) e NUNCA pode ser cacheado — senão a listagem/estatísticas ficariam
+// congeladas mostrando dados velhos.
+function ehEstatico(url) {
+  const p = url.pathname;
+  return p === '/' || p === '/index.html' || p === '/manifest.json' || p === '/sw.js' ||
+    p.startsWith('/css/') || p.startsWith('/js/') || p.startsWith('/assets/');
+}
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET') return;                 // login/API POST passam direto
+  if (req.method !== 'GET') return;                 // login/POST/PUT/DELETE passam direto
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;  // API (:8080) e CDNs passam direto
 
-  // Navegação: rede primeiro, cai no index cacheado offline (SPA).
+  // Navegação (SPA): rede primeiro; offline cai no index cacheado.
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req).catch(() => caches.match('./index.html')));
     return;
   }
-  // Assets do próprio app: cache primeiro (rápido/offline), atualiza em 2º plano.
+  // CDNs (outra origem) e API (mesma origem, mas NÃO é arquivo do app) passam
+  // DIRETO, sem cache. Este é o ponto crítico: sem isto o SW serviria respostas
+  // ANTIGAS da API (cache-first) e o app mostraria dados desatualizados.
+  if (url.origin !== self.location.origin || !ehEstatico(url)) return;
+
+  // Apenas os assets do app: cache primeiro (rápido/offline), atualiza em 2º plano.
   e.respondWith(
     caches.match(req).then((cached) => {
       const rede = fetch(req).then((resp) => {
