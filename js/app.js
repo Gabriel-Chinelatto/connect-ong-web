@@ -1010,16 +1010,59 @@ const App = (() => {
     } catch (e) { root().innerHTML = erroBox(e.message, 'ongs'); }
   }
   function pintarOngs(ongs) {
+    fecharHoverOng();
     const t = buscarOng.termo.trim().toLowerCase();
     const f = ongs.filter((o) => !t || (o.nome + ' ' + (o.cidade || '')).toLowerCase().includes(t));
     $('#grid-ong').innerHTML = f.length
       ? `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 slide-up">${f.map(cardOng).join('')}</div>`
       : vazio('ph-buildings', 'Nenhuma ONG', 'Tente outro termo.');
+    ligarHoverOng();
+  }
+  // Preview flutuante da ONG ao pausar o mouse sobre o card (recurso de web).
+  let hoverTimer = null, hoverPop = null;
+  function fecharHoverOng() {
+    if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+    if (hoverPop) { hoverPop.remove(); hoverPop = null; }
+  }
+  function resumoOngHtml(o) {
+    return `<div class="p-4">
+      <div class="flex items-center gap-3">${UI.avatar(o.nome, 'w-12 h-12')}
+        <div class="min-w-0"><p class="font-montserrat font-bold text-textDark truncate">${UI.esc(o.nome)} ${o.verificada ? '<i class="ph-fill ph-seal-check text-primary text-sm"></i>' : ''}</p>
+          <p class="text-xs text-textGrey"><i class="ph ph-map-pin"></i> ${UI.esc(o.cidade || 'Brasil')}</p></div>
+      </div>
+      <div class="mt-2">${UI.estrelas(o.notaMedia)} <span class="text-xs text-textGrey">${(Number(o.notaMedia) || 0).toFixed(1)} · ${o.totalAvaliacoes || 0} avaliação(ões)</span></div>
+      <p class="text-sm text-textGrey mt-2 line-clamp-4">${UI.esc(o.descricao || 'Sem descrição.')}</p>
+      <p class="text-xs font-bold text-primary mt-3">Clique para ver o perfil completo →</p>
+    </div>`;
+  }
+  function ligarHoverOng() {
+    document.querySelectorAll('.ong-card').forEach((card) => {
+      card.addEventListener('mouseenter', () => {
+        fecharHoverOng();
+        const id = Number(card.dataset.perfilOng);
+        const o = (state.ongs || []).find((x) => x.id === id);
+        if (!o) return;
+        hoverTimer = setTimeout(() => {
+          hoverTimer = null;
+          hoverPop = document.createElement('div');
+          hoverPop.className = 'fixed z-[70] w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 fade-in pointer-events-none';
+          hoverPop.innerHTML = resumoOngHtml(o);
+          document.body.appendChild(hoverPop);
+          const r = card.getBoundingClientRect();
+          const pw = 256, ph = hoverPop.offsetHeight;
+          let x = r.right + 10; if (x + pw > window.innerWidth - 8) x = r.left - pw - 10;
+          x = Math.max(8, Math.min(x, window.innerWidth - pw - 8));
+          let y = Math.min(r.top, window.innerHeight - ph - 8);
+          hoverPop.style.left = x + 'px'; hoverPop.style.top = Math.max(8, y) + 'px';
+        }, 1200); // pausa deliberada — não abre em passagem rápida
+      });
+      card.addEventListener('mouseleave', fecharHoverOng);
+    });
   }
   function cardOng(o) {
     const fav = state.favIds && state.favIds.has(o.id);
     const capa = UI.fotoSrc(o.capaBase64);
-    return `<div data-perfil-ong="${o.id}" class="bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer group">
+    return `<div data-perfil-ong="${o.id}" class="ong-card bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer group">
       <div class="h-16 relative ${capa ? '' : 'bg-gradient-to-r from-primary to-primary-dark'}" ${capa ? `style="background-image:url('${capa}');background-size:cover;background-position:center"` : ''}>
         <button data-fav="${o.id}" class="absolute top-2 right-2 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center ${fav ? 'text-accent' : 'text-gray-400 hover:text-accent'} shadow"><i class="ph${fav ? '-fill' : ''} ph-star text-lg"></i></button>
       </div>
@@ -1363,6 +1406,7 @@ const App = (() => {
     root().innerHTML = carregando();
     try {
       const [favs, ongs] = await Promise.all([API.favoritos(), API.ongs()]);
+      state.ongs = ongs; // p/ o preview de hover encontrar a ONG
       await carregarFavIds(true);
       const porId = {};
       for (const o of ongs) porId[o.id] = o;
@@ -1372,6 +1416,7 @@ const App = (() => {
         ? `<p class="text-textGrey font-medium mb-5 slide-up">${cards.length} ONG(s) favorita(s) — acompanhe suas necessidades e campanhas.</p>
            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 slide-up">${cards.map(cardOng).join('')}</div>`
         : vazio('ph-star', 'Sem favoritos ainda', 'Toque na estrela de uma ONG para acompanhá-la aqui.');
+      ligarHoverOng();
     } catch (e) { root().innerHTML = erroBox(e.message, 'favoritos'); }
   }
 
@@ -1710,7 +1755,7 @@ const App = (() => {
     $('#cfg-conquistas').addEventListener('click', () => irPara('impacto'));
     $('#cfg-sobre').addEventListener('click', () => irPara('sobre'));
     $('#cfg-integrantes').addEventListener('click', () => abrirIntegrantes());
-    $('#cfg-sair').addEventListener('click', () => { if (confirm('Deseja sair da sua conta?')) { API.sair(); location.hash = ''; mostrarLogin(); } });
+    $('#cfg-sair').addEventListener('click', fazerLogout);
     $('#cfg-excluir').addEventListener('click', excluirConta);
   }
   function secaoCfg(icon, titulo, conteudo) {
@@ -2214,7 +2259,16 @@ const App = (() => {
         ${semCoord.length ? `<p class="text-xs text-textGrey mt-3"><i class="ph ph-info"></i> Sem localização cadastrada (não aparecem no mapa): ${semCoord.map((o) => UI.esc(o.nome)).join(', ')}.</p>` : ''}`;
       const map = L.map('mapa-leaflet', { zoomControl: false, scrollWheelZoom: true }).setView([-22.5, -47.4], 8);
       L.control.zoom({ position: 'topright' }).addTo(map);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+      // Tiles conforme o tema: no ESCURO usa um mapa realmente escuro (CartoDB
+      // dark, grátis) em vez de inverter o OSM (que deixava as cores erradas).
+      const escuro = document.body.classList.contains('tema-escuro');
+      const urlTiles = escuro
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+      L.tileLayer(urlTiles, {
+        maxZoom: 19, subdomains: 'abcd',
+        attribution: '© OpenStreetMap © CARTO',
+      }).addTo(map);
       mapaState.instancia = map;
       const grupo = L.featureGroup().addTo(map);
       function pintar(termo) {
@@ -2296,8 +2350,8 @@ const App = (() => {
                 <i class="ph ph-plus"></i> ${UI.esc(o.nome)}</button>`).join('') || '<span class="text-sm text-textGrey">Nenhuma ONG encontrada.</span>'}
         </div>
       </div>
-      <div id="cmp-tabela" class="slide-up">${selIds.length < 2
-        ? vazio('ph-scales', 'Selecione ao menos 2 ONGs', 'Adicione ONGs acima para ver a comparação lado a lado.')
+      <div id="cmp-tabela" class="slide-up">${selIds.length === 0
+        ? vazio('ph-scales', 'Escolha ONGs para comparar', 'Toque numa ONG acima — ela aparece aqui na hora; adicione até 3 para comparar lado a lado.')
         : tabelaComparar(selIds)}</div>`;
     const bu = $('#cmp-busca');
     if (bu) bu.addEventListener('input', (e) => { cmpBusca.termo = e.target.value; pintarComparar(); });
@@ -2309,13 +2363,15 @@ const App = (() => {
   }
   function tabelaComparar(selIds) {
     const perfis = selIds.map((id) => state.perfisComp[id]).filter(Boolean);
-    if (perfis.length < 2) return erroBox('Não foi possível carregar todos os perfis para comparar.');
-    // Destaques: melhor nota, maior score, mais prestações.
+    if (perfis.length < 1) return erroBox('Não foi possível carregar o perfil para comparar.');
+    // Destaques (melhor nota/mais transparente/mais prestações) só fazem sentido
+    // com 2+ ONGs; com 1 selecionada mostramos só a coluna dela (sem selos).
+    const comparando = perfis.length >= 2;
     const max = (f) => Math.max(...perfis.map(f));
     const melhorNota = max((p) => Number(p.notaMedia) || 0);
     const melhorScore = max((p) => Number(p.transparenciaScore) || 0);
     const melhorPrest = max((p) => (p.totalPrestacoes ?? (p.prestacoes || []).length) || 0);
-    const destaque = (cond, txt) => cond ? `<span class="inline-block mt-1 text-[10px] font-bold text-white bg-primary rounded-full px-2 py-0.5">${txt}</span>` : '';
+    const destaque = (cond, txt) => (comparando && cond) ? `<span class="inline-block mt-1 text-[10px] font-bold text-white bg-primary rounded-full px-2 py-0.5">${txt}</span>` : '';
     const cab = perfis.map((p) => {
       const nv = NIVEL[p.nivelTransparencia] || {};
       return `<th class="p-4 align-bottom" style="width:${Math.floor(72 / perfis.length)}%">
@@ -2330,7 +2386,8 @@ const App = (() => {
     const scoreCell = (p) => { const v = Number(p.transparenciaScore) || 0; return `<div><p class="text-2xl font-montserrat font-black text-primary">${v}</p><p class="text-xs text-textGrey">pontos</p>${destaque(v > 0 && v === melhorScore, 'Mais transparente')}</div>`; };
     const prestCell = (p) => { const v = (p.totalPrestacoes ?? (p.prestacoes || []).length) || 0; return `<div><p class="font-bold text-textDark">${v}</p>${destaque(v > 0 && v === melhorPrest, 'Mais prestações')}</div>`; };
     const necCell = (p) => `${(p.totalNecessidades ?? (p.necessidades || []).filter((n) => n.status === 'ABERTA').length) || 0}`;
-    return `<div class="overflow-x-auto rounded-2xl border border-gray-100 shadow-card bg-white">
+    return `${comparando ? '' : '<p class="text-sm text-textGrey mb-2"><i class="ph ph-plus-circle text-primary"></i> Adicione mais uma ONG acima para comparar lado a lado.</p>'}
+      <div class="overflow-x-auto rounded-2xl border border-gray-100 shadow-card bg-white">
       <table class="w-full border-collapse min-w-[520px]">
         <thead><tr><th class="p-4"></th>${cab}</tr></thead>
         <tbody>
@@ -2418,7 +2475,7 @@ const App = (() => {
           <!-- Estatísticas gigantes -->
           <div class="lg:col-span-2 flex flex-col justify-center gap-5">
             <div class="grid grid-cols-2 gap-5">
-              ${tiles.map((t) => `<div class="bg-white/5 backdrop-blur rounded-3xl p-5 border border-white/10">
+              ${tiles.map((t) => `<div class="qk-tile bg-white/5 backdrop-blur rounded-3xl p-5 border border-white/10">
                 <i class="ph-fill ${t.i} text-2xl lg:text-3xl text-accent"></i>
                 <p class="showcase-num text-5xl lg:text-6xl font-montserrat font-black mt-2" data-alvo="${Number(t.v) || 0}">0</p>
                 <p class="text-white/60 font-bold uppercase tracking-wider text-xs lg:text-sm mt-1">${t.l}</p>
@@ -2438,7 +2495,7 @@ const App = (() => {
             <h2 class="font-montserrat font-black text-xl flex items-center gap-2 mb-4"><i class="ph-fill ph-trophy text-accent"></i> Mais transparentes</h2>
             <div class="flex-1 overflow-hidden space-y-2">
               ${(rank.length ? rank.slice(0, 8) : []).map((o, i) => `
-                <div class="flex items-center gap-3 bg-white/5 rounded-2xl p-3">
+                <div class="qk-rank flex items-center gap-3 bg-white/5 rounded-2xl p-3">
                   <span class="text-xl font-montserrat font-black w-8 text-center">${['🥇', '🥈', '🥉'][i] || (i + 1)}</span>
                   <div class="flex-1 min-w-0">
                     <p class="font-bold truncate">${UI.esc(o.nome)}</p>
@@ -2756,6 +2813,7 @@ const App = (() => {
     mapa: viewMapa, comparar: viewComparar,
   };
   function irPara(rota) {
+    fecharHoverOng();
     // Modo Quiosque é uma sobreposição de tela cheia, não troca a view do app.
     if (rota === 'showcase') { abrirShowcase(); return; }
     if (!VIEWS[rota]) rota = 'inicio';
@@ -2817,6 +2875,14 @@ const App = (() => {
       $('#view-app').hidden = false;
       aoEntrar();
     }, 300);
+  }
+  // Logout central (usado pelo botão da sidebar e pelo Ajustes).
+  function fazerLogout() {
+    if (!confirm('Deseja sair da sua conta?')) return;
+    API.sair();
+    location.hash = '';
+    mostrarLogin();
+    UI.toast('Você saiu da conta.', 'info');
   }
   function mostrarLogin() {
     if (sinoPoll) { clearInterval(sinoPoll); sinoPoll = null; }
@@ -2999,6 +3065,7 @@ const App = (() => {
     });
 
     $('#btn-perfil').addEventListener('click', () => { irPara('config'); });
+    $('#btn-logout').addEventListener('click', fazerLogout);
     $('#btn-sino').addEventListener('click', abrirNotificacoes);
     $('#btn-buscar').addEventListener('click', abrirCmdk);
     // Logo fixo da sidebar: volta ao Início e rola o conteúdo ao topo.

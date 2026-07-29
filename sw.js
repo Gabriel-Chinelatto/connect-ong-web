@@ -4,7 +4,7 @@
    offline e instalar. NÃO intercepta a API (outra origem, :8080) nem os CDNs —
    deixa passar direto. Não intercepta POST/PUT (login, doações, mensagens).
    ========================================================================= */
-const CACHE = 'connectong-v1';
+const CACHE = 'connectong-v2';
 const SHELL = [
   './',
   './index.html',
@@ -14,6 +14,9 @@ const SHELL = [
   './js/app.js',
   './manifest.json',
   './assets/img/logo.jpg',
+  './assets/img/icon-192.png',
+  './assets/img/icon-512.png',
+  './assets/img/icon-maskable-512.png',
   './assets/img/dora_mascote.svg',
   './assets/dados/municipios_por_uf.json',
   './assets/dados/cidades_coords.json',

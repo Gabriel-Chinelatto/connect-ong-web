@@ -65,6 +65,8 @@ body.tema-escuro .bg-primary-light\/60 { background-color: rgba(0,133,66,.20) !i
 body.tema-escuro .bg-white\/90 { background-color: rgba(43,54,68,.94) !important; }
 body.tema-escuro .bg-white\/10 { background-color: rgba(255,255,255,.08) !important; }
 body.tema-escuro .hover\:bg-white:hover { background-color: #313d4d !important; }
+/* Anéis brancos (avatar sobre a capa) — no tema escuro combinam com o card. */
+body.tema-escuro .border-white { border-color: #1b2430 !important; }
 body.tema-escuro .hover\:bg-gray-50:hover { background-color: #222c39 !important; }
 body.tema-escuro .hover\:bg-gray-100:hover { background-color: #2b3644 !important; }
 body.tema-escuro .shadow-card,
@@ -118,8 +120,7 @@ body.reduz-motion *::after {
 .leaflet-control-zoom a:hover { background: #e6f2ec !important; color: #008542 !important; }
 .leaflet-control-attribution { border-radius: 8px 0 0 0; font-size: 10px; }
 
-/* Mapa ESCURO no tema escuro (inverte só os tiles; pins/popups ficam normais) */
-body.tema-escuro .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.9); }
+/* Mapa ESCURO: agora usa tiles CartoDB dark (definido no JS), sem filtro de inversão. */
 body.tema-escuro .leaflet-control-zoom a { background: #1b2430 !important; color: #e5e7eb !important; }
 body.tema-escuro .leaflet-control-zoom a:hover { background: #008542 !important; color: #fff !important; }
 body.tema-escuro .leaflet-container { background: #0f1720; }
@@ -145,6 +146,11 @@ body.tema-escuro .leaflet-container { background: #0f1720; }
 .marquee-y { animation: scrollUpY 26s linear infinite; }
 @keyframes floatGlow { 0%,100% { opacity: .35; transform: scale(1); } 50% { opacity: .55; transform: scale(1.08); } }
 .glow { animation: floatGlow 6s ease-in-out infinite; }
+/* Quiosque interativo: reação ao passar o mouse */
+.qk-tile { transition: transform .25s cubic-bezier(.16,1,.3,1), background-color .25s, box-shadow .25s; }
+.qk-tile:hover { transform: translateY(-6px) scale(1.02); background: rgba(255,255,255,.10); box-shadow: 0 20px 40px -12px rgba(0,0,0,.5), 0 0 0 1px rgba(255,123,0,.35); }
+.qk-rank { transition: transform .2s, background-color .2s; }
+.qk-rank:hover { transform: translateX(4px); background: rgba(255,255,255,.12); }
 
 /* =========================================================================
    IMPRESSÃO — só o relatório (#print-root) vai para o papel/PDF
