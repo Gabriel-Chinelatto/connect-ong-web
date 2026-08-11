@@ -688,7 +688,7 @@ const App = (() => {
       </div>`);
 
     document.querySelectorAll('.pix-chip').forEach((b) => b.addEventListener('click', () => { $('#pix-valor').value = b.dataset.valor; }));
-    $('#pix-confirmar').addEventListener('click', () => gerarPix(c));
+    ligarAcao($('#pix-confirmar'), () => gerarPix(c));
   }
   async function gerarPix(c) {
     const valor = Number($('#pix-valor').value);
@@ -1471,8 +1471,8 @@ const App = (() => {
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 slide-up" style="animation-delay:.1s">
           ${(conq || []).map(cardConquista).join('') || vazio('ph-medal', 'Sem conquistas ainda', 'Faça sua primeira doação!')}
         </div>`;
-      const br = $('#btn-relatorio'); if (br) br.addEventListener('click', gerarRelatorio);
-      const bc = $('#btn-cartao'); if (bc) bc.addEventListener('click', gerarCartaoImpacto);
+      ligarAcao($('#btn-relatorio'), gerarRelatorio);
+      ligarAcao($('#btn-cartao'), gerarCartaoImpacto);
     } catch (e) { root().innerHTML = erroBox(e.message, 'impacto'); }
   }
   function statCard(icon, valor, label, cor, rota) {
@@ -2295,12 +2295,13 @@ const App = (() => {
         ${semCoord.length ? `<p class="text-xs text-textGrey mt-3"><i class="ph ph-info"></i> Sem localização cadastrada (não aparecem no mapa): ${semCoord.map((o) => UI.esc(o.nome)).join(', ')}.</p>` : ''}`;
       const map = L.map('mapa-leaflet', { zoomControl: false, scrollWheelZoom: true }).setView([-22.5, -47.4], 8);
       L.control.zoom({ position: 'topright' }).addTo(map);
-      // Tiles conforme o tema: no ESCURO usa um mapa realmente escuro (CartoDB
-      // dark, grátis) em vez de inverter o OSM (que deixava as cores erradas).
-      const escuro = document.body.classList.contains('tema-escuro');
-      const urlTiles = escuro
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+      // No tema escuro usávamos o tile "dark_all", que ficava escuro DEMAIS:
+      // ruas e nomes de bairro sumiam e o mapa virava uma mancha preta
+      // (relatado em 10/08/2026). Agora os dois temas usam o mesmo mapa legível
+      // (Voyager) e o tema escuro apenas o escurece por filtro no CSS
+      // (.tema-escuro .leaflet-tile) — preserva o contraste das ruas.
+      const urlTiles =
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
       L.tileLayer(urlTiles, {
         maxZoom: 19, subdomains: 'abcd',
         attribution: '© OpenStreetMap © CARTO',
@@ -2345,7 +2346,16 @@ const App = (() => {
       $('#mapa-limpar').addEventListener('click', () => {
         mapaState.termo = ''; const b = $('#mapa-busca'); if (b) { b.value = ''; b.focus(); } pintar('');
       });
-      $('#mapa-recentrar').addEventListener('click', () => { pintar(mapaState.termo); });
+      // "Ver todas as ONGs": limpa o filtro e reenquadra TODOS os marcadores.
+      // Antes só repintava com o filtro atual — com uma busca ativa o botão
+      // contrariava o próprio nome, e sem filtro nada mudava na tela (o mapa já
+      // estava enquadrado), dando a impressão de botão quebrado.
+      $('#mapa-recentrar').addEventListener('click', () => {
+        mapaState.termo = '';
+        const b = $('#mapa-busca');
+        if (b) b.value = '';
+        pintar('');
+      });
       setTimeout(() => { try { map.invalidateSize(); } catch {} }, 200);
     } catch (e) { root().innerHTML = erroBox(e.message, 'mapa'); }
   }
@@ -2368,13 +2378,37 @@ const App = (() => {
     } catch (e) { root().innerHTML = erroBox(e.message, 'comparar'); }
   }
   const cmpBusca = { termo: '' };
+
+  /**
+   * Desenha a tela do comparador.
+   *
+   * IMPORTANTE: desenha PRIMEIRO e busca os perfis DEPOIS. Antes, a função
+   * aguardava o perfil da ONG chegar da API antes de renderizar qualquer coisa
+   * — como a API hospedada leva de 0,7s a alguns segundos, clicar em "adicionar"
+   * parecia não fazer nada e o usuário concluía que o comparador estava
+   * quebrado (relatado em 10/08/2026). Agora a coluna aparece na hora, com um
+   * esqueleto de carregamento, e é preenchida quando o perfil chega.
+   */
   async function pintarComparar() {
-    const ongs = state.ongs || [];
     const selIds = comparar.ids.slice(0, 3);
-    // Garante perfis carregados para as selecionadas.
-    await Promise.all(selIds.map(async (id) => {
-      if (!state.perfisComp[id]) { try { state.perfisComp[id] = await API.perfilOng(id); } catch { state.perfisComp[id] = null; } }
+    const faltando = selIds.filter((id) => state.perfisComp[id] === undefined);
+
+    desenharComparar(selIds, faltando);
+    if (!faltando.length) return;
+
+    await Promise.all(faltando.map(async (id) => {
+      try { state.perfisComp[id] = await API.perfilOng(id); }
+      catch { state.perfisComp[id] = null; }
     }));
+    // Só redesenha se a seleção não mudou no meio do caminho (o usuário pode
+    // ter adicionado/removido outra ONG enquanto esta carregava).
+    if (comparar.ids.slice(0, 3).join(',') === selIds.join(',')) {
+      desenharComparar(selIds, []);
+    }
+  }
+
+  function desenharComparar(selIds, carregandoIds) {
+    const ongs = state.ongs || [];
     const t = cmpBusca.termo.trim().toLowerCase();
     const candidatas = ongs
       .filter((o) => !selIds.includes(o.id))
@@ -2395,7 +2429,7 @@ const App = (() => {
       </div>
       <div id="cmp-tabela" class="slide-up">${selIds.length === 0
         ? vazio('ph-scales', 'Escolha ONGs para comparar', 'Toque numa ONG acima — ela aparece aqui na hora; adicione até 3 para comparar lado a lado.')
-        : tabelaComparar(selIds)}</div>`;
+        : tabelaComparar(selIds, carregandoIds || [])}</div>`;
     const bu = $('#cmp-busca');
     if (bu) bu.addEventListener('input', (e) => { cmpBusca.termo = e.target.value; pintarComparar(); });
   }
@@ -2404,7 +2438,25 @@ const App = (() => {
       <th class="text-left p-3 text-sm font-bold text-textGrey whitespace-nowrap align-top"><i class="ph ${icon} text-primary"></i> ${label}</th>
       ${valores.map((v) => `<td class="p-3 text-center align-top">${v}</td>`).join('')}</tr>`;
   }
-  function tabelaComparar(selIds) {
+  function tabelaComparar(selIds, carregandoIds = []) {
+    // Colunas ainda carregando viram um "esqueleto" com o nome da ONG, para a
+    // pessoa ver na hora que o clique funcionou.
+    if (carregandoIds.length) {
+      const ongs = state.ongs || [];
+      const nomeDe = (id) => (ongs.find((o) => o.id === id) || {}).nome || 'ONG';
+      const colunas = selIds.map((id) => {
+        const carregando = carregandoIds.includes(id);
+        return `<div class="flex-1 min-w-[150px] bg-white rounded-2xl border border-gray-100 shadow-card p-5 text-center">
+          <div class="flex justify-center mb-2">${UI.avatar(nomeDe(id), 'w-14 h-14 text-lg')}</div>
+          <p class="font-montserrat font-bold text-textDark text-sm leading-tight">${UI.esc(nomeDe(id))}</p>
+          ${carregando
+            ? '<p class="text-xs text-textGrey mt-3 flex items-center justify-center gap-1.5"><i class="ph ph-circle-notch spin"></i> carregando…</p>'
+            : '<p class="text-xs text-primary mt-3 font-semibold">pronto</p>'}
+        </div>`;
+      }).join('');
+      return `<div class="flex flex-wrap gap-4">${colunas}</div>`;
+    }
+
     const perfis = selIds.map((id) => state.perfisComp[id]).filter(Boolean);
     if (perfis.length < 1) return erroBox('Não foi possível carregar o perfil para comparar.');
     // Destaques (melhor nota/mais transparente/mais prestações) só fazem sentido
@@ -3080,10 +3132,59 @@ const App = (() => {
   // =========================================================================
   // Delegação global de cliques (data-attributes)
   // =========================================================================
+  /**
+   * Trava de ação em andamento.
+   *
+   * A API hospedada leva de 0,7s a alguns segundos por chamada. Sem isto, quem
+   * clicava de novo achando que "não pegou" disparava a MESMA ação duas vezes —
+   * gerando, por exemplo, dois cartões de impacto (relatado em 10/08/2026).
+   * Enquanto a ação roda, o elemento fica marcado e novos cliques são
+   * ignorados; sendo um botão, ele também mostra "carregando…".
+   */
+  function travarEnquantoRoda(el, promessa) {
+    if (!el || !promessa || typeof promessa.then !== 'function') return promessa;
+    el.dataset.ocupado = '1';
+    const ehBotao = el.tagName === 'BUTTON';
+    const conteudoOriginal = ehBotao ? el.innerHTML : null;
+    if (ehBotao) {
+      el.disabled = true;
+      el.innerHTML = '<i class="ph ph-circle-notch spin"></i> carregando…';
+    }
+    const liberar = () => {
+      delete el.dataset.ocupado;
+      // Se a ação re-renderizou a tela, o elemento nem existe mais — restaurar
+      // um nó solto é inofensivo.
+      if (ehBotao) { el.disabled = false; el.innerHTML = conteudoOriginal; }
+    };
+    return promessa.then(
+      (v) => { liberar(); return v; },
+      (err) => { liberar(); throw err; },
+    );
+  }
+
+  /**
+   * Liga um clique a uma ação assíncrona já protegida contra duplo clique.
+   * Use no lugar de `el.addEventListener('click', fn)` sempre que `fn` fizer
+   * chamada de rede ou gerar algo (imagem, PDF, PIX).
+   */
+  function ligarAcao(el, fn) {
+    if (!el) return;
+    el.addEventListener('click', (ev) => {
+      if (el.dataset.ocupado === '1') { ev.preventDefault(); return; }
+      travarEnquantoRoda(el, fn(ev));
+    });
+  }
+
   function ligarCliques() {
     document.addEventListener('click', (e) => {
       const alvo = e.target.closest('[data-rota],[data-aba],[data-necessidade],[data-interesse],[data-chat],[data-concluir],[data-pix],[data-perfil-ong],[data-fav],[data-avaliar],[data-notif],[data-frete-ong],[data-denunciar],[data-share-ong],[data-ver-img],[data-redemo],[data-prestacao],[data-reagir],[data-dora-abrir],[data-dora-menu],[data-editdoacao],[data-deldoacao],[data-cat],[data-cmp-add],[data-cmp-rm]');
       if (!alvo) return;
+      // Já existe uma ação deste mesmo elemento em andamento: ignora o repique.
+      if (alvo.dataset.ocupado === '1') { e.preventDefault(); return; }
+      return travarEnquantoRoda(alvo, despacharClique(alvo, e));
+    });
+
+    function despacharClique(alvo, e) {
       if (alvo.dataset.cmpAdd) { const id = Number(alvo.dataset.cmpAdd); if (!comparar.ids.includes(id) && comparar.ids.length < 3) { comparar.ids.push(id); cmpBusca.termo = ''; } return pintarComparar(); }
       if (alvo.dataset.cmpRm) { comparar.ids = comparar.ids.filter((x) => x !== Number(alvo.dataset.cmpRm)); return pintarComparar(); }
       if (alvo.dataset.cat) { explorar.categoria = alvo.dataset.cat; return viewExplorar(); }
@@ -3109,7 +3210,7 @@ const App = (() => {
       if (alvo.dataset.chat) return abrirChat(alvo.dataset.chat, alvo.dataset.ong || 'ONG', alvo.dataset.ongid ? Number(alvo.dataset.ongid) : null, alvo.dataset.concluido === '1');
       if (alvo.dataset.concluir) return concluirMatch(alvo.dataset.concluir);
       if (alvo.dataset.pix) return abrirPix(Number(alvo.dataset.pix));
-    });
+    }
 
     $('#btn-perfil').addEventListener('click', () => { irPara('config'); });
     $('#btn-logout').addEventListener('click', fazerLogout);

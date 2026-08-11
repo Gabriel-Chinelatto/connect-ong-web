@@ -62,8 +62,19 @@ body.tema-escuro .bg-primary-light\/50,
 body.tema-escuro .bg-primary-light\/60 { background-color: rgba(0,133,66,.20) !important; }
 /* Cards claros translúcidos (ex.: sugestões de ONG da Dora, chips de reação) —
    sem isto ficavam brancos com texto claro (ilegíveis) no tema escuro. */
-body.tema-escuro .bg-white\/90 { background-color: rgba(43,54,68,.94) !important; }
-body.tema-escuro .bg-white\/10 { background-color: rgba(255,255,255,.08) !important; }
+/* TODAS as variantes translúcidas usadas no código precisam estar aqui. Faltando
+   uma, o elemento fica com fundo BRANCO enquanto o texto herda a cor clara do
+   tema — some da tela. Foi o que aconteceu com a barra de busca do mapa
+   (bg-white/95) e com o botão de recentrar, relatados em 10/08/2026. */
+body.tema-escuro .bg-white\/95,
+body.tema-escuro .bg-white\/90,
+body.tema-escuro .bg-white\/85,
+body.tema-escuro .bg-white\/80,
+body.tema-escuro .bg-white\/70 { background-color: rgba(43,54,68,.94) !important; }
+body.tema-escuro .bg-white\/25,
+body.tema-escuro .bg-white\/20,
+body.tema-escuro .bg-white\/10,
+body.tema-escuro .bg-white\/5  { background-color: rgba(255,255,255,.08) !important; }
 body.tema-escuro .hover\:bg-white:hover { background-color: #313d4d !important; }
 /* Anéis brancos (avatar sobre a capa) — no tema escuro combinam com o card. */
 body.tema-escuro .border-white { border-color: #1b2430 !important; }
@@ -120,7 +131,14 @@ body.reduz-motion *::after {
 .leaflet-control-zoom a:hover { background: #e6f2ec !important; color: #008542 !important; }
 .leaflet-control-attribution { border-radius: 8px 0 0 0; font-size: 10px; }
 
-/* Mapa ESCURO: agora usa tiles CartoDB dark (definido no JS), sem filtro de inversão. */
+/* Mapa no tema ESCURO: o tile "dark_all" do CartoDB deixava tudo preto demais
+   (não dava para ler rua nem bairro). Usamos o MESMO mapa claro dos dois temas
+   e apenas o escurecemos aqui — mantém o contraste das ruas e combina com o
+   tema. `brightness` abaixo de 1 escurece; o leve `contrast` recupera a
+   definição perdida. */
+body.tema-escuro .leaflet-tile {
+    filter: brightness(0.72) contrast(1.08) saturate(0.9);
+}
 body.tema-escuro .leaflet-control-zoom a { background: #1b2430 !important; color: #e5e7eb !important; }
 body.tema-escuro .leaflet-control-zoom a:hover { background: #008542 !important; color: #fff !important; }
 body.tema-escuro .leaflet-container { background: #0f1720; }
