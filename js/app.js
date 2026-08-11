@@ -538,7 +538,7 @@ const App = (() => {
       <form id="chat-form" class="p-3 border-t border-gray-100 flex items-center gap-2">
         <button type="button" id="chat-anexo-btn" class="w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-image text-xl"></i></button>
         <input id="chat-anexo" type="file" accept="image/*" class="hidden">
-        <input id="chat-input" placeholder="Escreva uma mensagem…" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
+        <input id="chat-input" maxlength="2000" placeholder="Escreva uma mensagem…" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
         <button class="w-12 h-12 bg-primary hover:bg-primary-dark text-white rounded-2xl flex items-center justify-center flex-shrink-0"><i class="ph-fill ph-paper-plane-right text-xl"></i></button>
       </form>`}`, 'max-w-lg', () => { if (chatPoll) clearInterval(chatPoll); chatPoll = null; });
 
@@ -842,7 +842,7 @@ const App = (() => {
           <form id="dora-form" class="p-3 border-t border-gray-100 flex items-center gap-2">
             <button type="button" id="dora-anexo-btn" class="w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-image text-xl"></i></button>
             <input id="dora-anexo" type="file" accept="image/*" class="hidden">
-            <input id="dora-input" placeholder="Pergunte à Dora o que doar, para quem…" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
+            <input id="dora-input" maxlength="1000" placeholder="Pergunte à Dora o que doar, para quem…" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
             <button type="button" id="dora-mic" title="Segure para falar" class="dora-mic w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-microphone text-xl"></i></button>
             <button class="w-12 h-12 bg-primary hover:bg-primary-dark text-white rounded-2xl flex items-center justify-center flex-shrink-0"><i class="ph-fill ph-paper-plane-right text-xl"></i></button>
           </form>
@@ -1195,7 +1195,7 @@ const App = (() => {
         <input name="origem" value="${UI.esc(u.cidade || '')}" placeholder="Sua cidade" class="p-3 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
         <input value="${UI.esc(p.cidade || '')}" disabled class="p-3 bg-gray-100 rounded-xl text-textGrey">
       </div>
-      <input name="item" value="${UI.esc(primeira ? primeira.titulo : '')}" placeholder="O que vai doar" class="w-full p-3 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <input name="item" maxlength="200" value="${UI.esc(primeira ? primeira.titulo : '')}" placeholder="O que vai doar" class="w-full p-3 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       <div class="grid grid-cols-2 gap-3">
         <select name="categoria" class="p-3 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
           ${UI.CANONICAS.map((c) => `<option value="${c.valor}" ${primeira && UI.normalizarCat(primeira.categoria) === c.valor ? 'selected' : ''}>${c.emoji} ${c.rotulo}</option>`).join('')}
@@ -1235,7 +1235,7 @@ const App = (() => {
       <select name="motivo" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
         ${MOTIVOS.map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}
       </select>
-      <textarea name="descricao" rows="3" placeholder="Descreva o que aconteceu (opcional)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none"></textarea>
+      <textarea name="descricao" rows="3" maxlength="1000" placeholder="Descreva o que aconteceu (opcional)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none"></textarea>
       <button class="btn-submit w-full py-3.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-2xl disabled:opacity-60">Enviar denúncia</button>
     </form>`, 'max-w-sm');
     $('#f-denuncia').addEventListener('submit', async (e) => {
@@ -1389,7 +1389,7 @@ const App = (() => {
       <div id="estrelas-input" class="flex justify-center gap-2 my-6">
         ${[1, 2, 3, 4, 5].map((i) => `<button data-nota="${i}" class="text-4xl ${i <= nota ? 'text-accent' : 'text-gray-300'}"><i class="ph-fill ph-star"></i></button>`).join('')}
       </div>
-      <textarea id="aval-coment" rows="3" placeholder="Comentário (opcional)" class="w-full p-4 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none"></textarea>
+      <textarea id="aval-coment" rows="3" maxlength="1000" placeholder="Comentário (opcional)" class="w-full p-4 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none"></textarea>
       <button id="aval-enviar" class="w-full mt-4 py-4 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-60">Enviar avaliação</button>
     </div>`);
     $('#estrelas-input').addEventListener('click', (e) => {
@@ -1578,19 +1578,19 @@ const App = (() => {
   function abrirNovaDoacao(doacao) {
     const editar = !!doacao;
     const cats = state.categorias || UI.CANONICAS.map((c) => c.valor);
-    abrirModal(`<form id="form-doacao" class="p-7 space-y-4">
+    abrirModal(`<form id="form-doacao" data-avisar-saida class="p-7 space-y-4">
       <div class="text-center mb-2">
         <div class="w-14 h-14 bg-primary-light rounded-full flex items-center justify-center mx-auto mb-3 text-primary"><i class="ph-fill ph-gift text-3xl"></i></div>
         <h3 class="text-xl font-montserrat font-bold text-textDark">${editar ? 'Editar doação' : 'O que você quer doar?'}</h3>
       </div>
-      <input name="nome" required value="${editar ? UI.esc(doacao.nome) : ''}" placeholder="Item (ex: Cobertores)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <input name="nome" required maxlength="150" value="${editar ? UI.esc(doacao.nome) : ''}" placeholder="Item (ex: Cobertores)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       <div class="grid grid-cols-2 gap-3">
         <select name="categoria" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
           ${cats.map((c) => `<option value="${UI.esc(c)}" ${editar && UI.normalizarCat(doacao.categoria) === UI.normalizarCat(c) ? 'selected' : ''}>${UI.cat(c).emoji} ${UI.esc(UI.cat(c).rotulo)}</option>`).join('')}
         </select>
         <input name="quantidade" type="number" min="1" value="${editar ? (doacao.quantidade || 1) : ''}" placeholder="Quantidade" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       </div>
-      <textarea name="descricao" rows="3" required placeholder="Descrição / estado de conservação" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none">${editar ? UI.esc(doacao.descricao || '') : ''}</textarea>
+      <textarea name="descricao" rows="3" required maxlength="2000" placeholder="Descrição / estado de conservação" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none">${editar ? UI.esc(doacao.descricao || '') : ''}</textarea>
       <label class="flex items-center gap-2 text-sm font-semibold text-textDark"><input type="checkbox" name="urgente" ${editar && doacao.urgente ? 'checked' : ''} class="w-4 h-4 accent-primary"> Marcar como urgente</label>
       <button class="btn-submit w-full py-4 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold uppercase tracking-wider rounded-2xl shadow-lg shadow-primary/30 disabled:opacity-60">${editar ? 'Salvar alterações' : 'Publicar doação'}</button>
     </form>`);
@@ -1825,7 +1825,7 @@ const App = (() => {
   }
   async function abrirEditarPerfil() {
     const u = API.usuario() || {};
-    abrirModal(`<form id="f-perfil" class="p-7 space-y-4">
+    abrirModal(`<form id="f-perfil" data-avisar-saida class="p-7 space-y-4">
       <h3 class="text-xl font-montserrat font-bold text-textDark text-center mb-1">Editar perfil</h3>
       <div class="flex justify-center">
         <label class="relative cursor-pointer">
@@ -1835,7 +1835,7 @@ const App = (() => {
         </label>
       </div>
       <input name="nome" required maxlength="80" value="${UI.esc(u.nome || '')}" placeholder="Nome" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
-      <input name="telefone" value="${UI.esc(u.telefone || '')}" placeholder="Telefone" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <input name="telefone" maxlength="20" value="${UI.esc(u.telefone || '')}" placeholder="Telefone" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       <div class="grid grid-cols-3 gap-2">
         <select id="ep-uf" class="col-span-1 p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"><option value="">UF</option></select>
         <input id="ep-cidade" list="ep-cidades" value="${UI.esc(u.cidade || '')}" placeholder="Cidade" class="col-span-2 p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"><datalist id="ep-cidades"></datalist>
@@ -2026,7 +2026,7 @@ const App = (() => {
           <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-card border border-gray-100 overflow-hidden">
             <div id="dev-msgs" class="h-80 overflow-y-auto p-4 space-y-3 bg-background"></div>
             <form id="dev-form" class="p-3 border-t border-gray-100 flex items-center gap-2">
-              <input id="dev-input" placeholder="Ex: qual a stack? quando a IA foi feita?" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
+              <input id="dev-input" maxlength="1000" placeholder="Ex: qual a stack? quando a IA foi feita?" autocomplete="off" class="flex-1 px-4 py-3 bg-background rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary">
               <button class="w-12 h-12 bg-primary hover:bg-primary-dark text-white rounded-2xl flex items-center justify-center flex-shrink-0"><i class="ph-fill ph-paper-plane-right text-xl"></i></button>
             </form>
           </div>
@@ -2177,6 +2177,9 @@ const App = (() => {
   // Modal genérico
   // =========================================================================
   let onFecharModal = null;
+  // Ha alteracao nao salva no formulario do modal atual?
+  let modalSujo = false;
+
   function abrirModal(htmlInterno, maxW = 'max-w-md', aoFechar = null) {
     // Se já havia um modal com callback de fechamento pendente (ex.: o poller do
     // chat), executa-o AGORA — senão abrir um 2º modal por cima (reagir, abrir
@@ -2190,10 +2193,29 @@ const App = (() => {
           ${htmlInterno}
         </div>
       </div>`;
-    $('#modal-x').addEventListener('click', fecharModal);
-    $('#modal-bg').addEventListener('click', (e) => { if (e.target.id === 'modal-bg') fecharModal(); });
+    modalSujo = false;
+    $('#modal-x').addEventListener('click', fecharModalPeloUsuario);
+    $('#modal-bg').addEventListener('click', (e) => { if (e.target.id === 'modal-bg') fecharModalPeloUsuario(); });
+    // Marca "tem alteracao pendente" quando se digita num formulario de EDICAO
+    // (os marcados com data-avisar-saida). Buscas e o chat ficam de fora de
+    // proposito — avisar ali so atrapalharia.
+    $('#modal-root').addEventListener('input', (e) => {
+      if (e.target.closest('form[data-avisar-saida]')) modalSujo = true;
+    });
   }
+
+  /// Fechamento pedido PELA PESSOA (X ou clique fora). Diferente do
+  /// fecharModal() chamado pelo codigo depois de salvar, que nao deve avisar.
+  function fecharModalPeloUsuario() {
+    if (modalSujo &&
+        !confirm('Você tem alterações que ainda não foram salvas. Fechar mesmo assim?')) {
+      return;
+    }
+    fecharModal();
+  }
+
   function fecharModal() {
+    modalSujo = false;
     if (onFecharModal) { try { onFecharModal(); } catch {} onFecharModal = null; }
     $('#modal-root').innerHTML = '';
   }
