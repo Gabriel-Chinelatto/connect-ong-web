@@ -123,6 +123,22 @@ body.reduz-motion *::after {
     font-size: 17px;
 }
 .co-pin.verificada { box-shadow: 0 0 0 2px #ff7b00, 0 4px 12px rgba(0,0,0,.35); }
+
+/* --- Mapa: bolha de ESTADO (visão afastada) ---
+   Com milhares de ONGs, um pino por instituição cobria o Brasil inteiro e o
+   mapa deixava de dizer qualquer coisa. Afastado, cada estado vira uma bolha
+   com a contagem; ao aproximar (ou clicar na bolha), voltam os pinos de cada
+   ONG. */
+.co-bolha-uf {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-radius: 50%; cursor: pointer; line-height: 1;
+    background: rgba(0, 133, 66, .92); color: #fff; border: 3px solid #fff;
+    box-shadow: 0 6px 16px rgba(0,0,0,.35);
+    transition: transform .15s ease, background-color .15s ease;
+}
+.co-bolha-uf:hover { transform: scale(1.08); background: #006c35; }
+.co-bolha-uf b { font-size: 15px; font-weight: 800; letter-spacing: -.3px; }
+.co-bolha-uf span { font-size: 10px; font-weight: 700; opacity: .9; margin-top: 2px; }
 .leaflet-popup-content { margin: 12px 14px; }
 .leaflet-popup-content-wrapper { border-radius: 16px; }
 /* Controles de zoom no estilo do app */

@@ -2295,7 +2295,7 @@ const App = (() => {
           ${chip('ph-map-pin-line', `${comCoord.length} ONGs no mapa`, 'text-primary')}
           ${chip('ph-seal-check', `${nVerif} verificadas`, 'text-accent')}
           ${chip('ph-buildings', `${nCidades} cidade(s)`)}
-          <span class="text-xs text-textGrey ml-1">Clique num marcador para abrir o perfil.</span>
+          <span id="mapa-dica" class="text-xs text-textGrey ml-1">Clique num estado para aproximar; ao aproximar, cada ONG aparece com seu pino.</span>
         </div>
         <div class="relative rounded-3xl overflow-hidden shadow-card border border-gray-100 slide-up" style="height:calc(100vh - 230px);min-height:440px">
           <div id="mapa-leaflet" class="absolute inset-0"></div>
@@ -2315,7 +2315,10 @@ const App = (() => {
           </button>
         </div>
         ${semCoord.length ? `<p class="text-xs text-textGrey mt-3"><i class="ph ph-info"></i> Sem localização cadastrada (não aparecem no mapa): ${semCoord.map((o) => UI.esc(o.nome)).join(', ')}.</p>` : ''}`;
-      const map = L.map('mapa-leaflet', { zoomControl: false, scrollWheelZoom: true }).setView([-22.5, -47.4], 8);
+      // Abre mostrando o BRASIL (visão agrupada por estado). Antes abria em
+      // Limeira com zoom 8, o que fazia sentido quando havia 20 ONGs, todas da
+      // região; hoje elas estão espalhadas pelo país inteiro.
+      const map = L.map('mapa-leaflet', { zoomControl: false, scrollWheelZoom: true }).setView([-14.8, -52.5], 4);
       L.control.zoom({ position: 'topright' }).addTo(map);
       // No tema escuro usávamos o tile "dark_all", que ficava escuro DEMAIS:
       // ruas e nomes de bairro sumiam e o mapa virava uma mancha preta
@@ -2330,43 +2333,179 @@ const App = (() => {
       }).addTo(map);
       mapaState.instancia = map;
       const grupo = L.featureGroup().addTo(map);
-      function pintar(termo) {
+
+      // Posição final de cada ONG no mapa, calculada UMA vez.
+      // Coordenada exata quando a ONG a cadastrou; senão o centro da cidade
+      // com dispersão em espiral, para as ONGs da mesma cidade não empilharem.
+      const contagemCidade = {};
+      const pontos = comCoord.map(({ o, c, exata }) => {
+        if (exata) return { o, lat: c[0], lng: c[1] };
+        const k = chaveCidade(o.cidade);
+        const n = contagemCidade[k] = (contagemCidade[k] || 0);
+        contagemCidade[k] = n + 1;
+        const ang = n * 2.399, raio = n ? 0.018 + n * 0.007 : 0;
+        return { o, lat: c[0] + Math.sin(ang) * raio, lng: c[1] + Math.cos(ang) * raio };
+      });
+
+      // O mapa tem TRÊS níveis, porque 2.000 pinos de uma vez cobriam o Brasil
+      // inteiro e não diziam mais nada:
+      //   zoom  < 7   -> uma bolha por ESTADO ("448 SP", com o nome no hover)
+      //   zoom 7 a 11 -> bolhas por ÁREA, que encolhem conforme você aproxima
+      //   zoom >= 12  -> o pino de cada ONG
+      const ZOOM_ESTADO_ATE = 7;
+      const ZOOM_DETALHE = 12;
+
+      // Estado e cidade de cada ponto (a UF vem no fim de "Limeira - SP").
+      for (const p of pontos) {
+        const m = /-\s*([A-Za-z]{2})\.?\s*$/.exec(p.o.cidade || '');
+        const uf = m ? m[1].toUpperCase() : null;
+        p.uf = uf && UI.UFS.includes(uf) ? uf : null;
+        p.cidade = (p.o.cidade || '').trim() || null;
+      }
+
+      /** Agrupa por uma chave; o centro é a média das coordenadas do grupo
+       *  (cai onde as ONGs realmente estão, sem tabela de centroides). */
+      function agrupar(lista, chaveDe) {
+        const mapa = {};
+        for (const p of lista) {
+          const k = chaveDe(p);
+          if (!k) continue;
+          (mapa[k] = mapa[k] || { chave: k, itens: [] }).itens.push(p);
+        }
+        return Object.values(mapa).map((g) => ({
+          chave: g.chave,
+          itens: g.itens,
+          lat: g.itens.reduce((s, p) => s + p.lat, 0) / g.itens.length,
+          lng: g.itens.reduce((s, p) => s + p.lng, 0) / g.itens.length,
+          // Decrescente: os grupos MENORES entram por último e ficam por cima.
+          // Senão São Paulo cobriria os vizinhos, que sumiriam do mapa.
+        })).sort((a, b) => b.itens.length - a.itens.length);
+      }
+
+      const bolhasUf = agrupar(pontos, (p) => p.uf);
+      const semUf = pontos.filter((p) => !p.uf);
+
+      function iconeBolha(n, rotulo) {
+        // Tamanho cresce com a quantidade, mas numa faixa estreita: os estados
+        // do Nordeste são pequenos e vizinhos, e bolhas grandes demais se
+        // sobrepunham a ponto de esconder PB, AL e SE atrás de PE.
+        const d = Math.round(Math.min(46, 26 + Math.sqrt(n) * 2.2));
+        return L.divIcon({
+          className: '', iconSize: [d, d], iconAnchor: [d / 2, d / 2],
+          html: `<div class="co-bolha-uf" style="width:${d}px;height:${d}px">
+                   <b>${n}</b>${rotulo ? `<span>${rotulo}</span>` : ''}
+                 </div>`,
+        });
+      }
+
+      function pintar(termo, enquadrar) {
         grupo.clearLayers();
         const t = (termo || '').trim().toLowerCase();
-        const contagem = {}; const pts = [];
-        for (const { o, c, exata } of comCoord) {
-          if (t && !(o.nome + ' ' + (o.cidade || '')).toLowerCase().includes(t)) continue;
-          let lat, lng;
-          if (exata) {
-            // Local exato da ONG: usa a coordenada cadastrada, sem dispersão.
-            lat = c[0]; lng = c[1];
-          } else {
-            // Fallback por cidade: dispersão determinística (espiral) para as
-            // ONGs que compartilham o mesmo centro de cidade não se sobreporem.
-            const k = chaveCidade(o.cidade);
-            const n = contagem[k] = (contagem[k] || 0);
-            contagem[k] = n + 1;
-            const ang = n * 2.399, raio = n ? 0.018 + n * 0.007 : 0;
-            lat = c[0] + Math.sin(ang) * raio; lng = c[1] + Math.cos(ang) * raio;
+        const filtrados = t
+          ? pontos.filter((p) => (p.o.nome + ' ' + (p.o.cidade || '')).toLowerCase().includes(t))
+          : pontos;
+
+        // Buscando, o resultado já é pequeno: mostra o pino de cada ONG, que é
+        // o que a pessoa procurava. Sem busca, o nível depende do zoom.
+        const zoom = map.getZoom();
+        const nivel = t ? 'ong' : (zoom < ZOOM_ESTADO_ATE ? 'uf'
+          : zoom < ZOOM_DETALHE ? 'grade' : 'ong');
+        const enquadraveis = [];
+
+        // Desenha uma bolha de grupo (estado ou cidade). Clicar aproxima até o
+        // conteúdo dela, e o próprio zoom já muda para o nível seguinte.
+        const desenharBolha = (b, rotulo, dica) => {
+          L.marker([b.lat, b.lng], {
+            icon: iconeBolha(b.itens.length, rotulo), zIndexOffset: 500,
+          }).addTo(grupo)
+            .bindTooltip(dica, { direction: 'top', offset: [0, -8] })
+            .on('click', () => {
+              const cantos = b.itens.map((p) => [p.lat, p.lng]);
+              try {
+                map.fitBounds(cantos, { padding: [60, 60], maxZoom: ZOOM_DETALHE });
+              } catch {}
+            });
+          enquadraveis.push([b.lat, b.lng]);
+        };
+
+        if (nivel === 'uf') {
+          for (const b of bolhasUf) {
+            const n = b.itens.length;
+            desenharBolha(b, b.chave,
+              `${UI.NOME_UF[b.chave] || b.chave}: ${n} ONG${n > 1 ? 's' : ''}`);
           }
-          L.marker([lat, lng], { icon: pinOng(o) }).addTo(grupo).bindPopup(popupOng(o), { minWidth: 210 });
-          pts.push([lat, lng]);
+          // ONGs sem UF reconhecível continuam com pino próprio (são poucas).
+          for (const p of semUf) {
+            L.marker([p.lat, p.lng], { icon: pinOng(p.o) }).addTo(grupo)
+              .bindPopup(popupOng(p.o), { minWidth: 210 });
+            enquadraveis.push([p.lat, p.lng]);
+          }
+        } else if (nivel === 'grade') {
+          // Zoom intermediário: agrupar por CIDADE não resolvia (são 1.414
+          // cidades distintas, quase todas com 1 ou 2 ONGs, e a tela continuava
+          // coberta de pinos). Aqui o agrupamento é por ÁREA, e a área encolhe
+          // conforme o zoom: o passo é calculado para cada bolha ocupar ~70px
+          // na tela, então a leitura fica igual de longe ou de perto.
+          const passo = 98 / Math.pow(2, zoom);
+          const area = map.getBounds();
+          const celulas = {};
+          for (const p of filtrados) {
+            if (!area.contains([p.lat, p.lng])) continue;
+            const k = `${Math.round(p.lat / passo)}_${Math.round(p.lng / passo)}`;
+            (celulas[k] = celulas[k] || []).push(p);
+          }
+          for (const itens of Object.values(celulas)) {
+            if (itens.length === 1) {
+              const p = itens[0];
+              L.marker([p.lat, p.lng], { icon: pinOng(p.o) }).addTo(grupo)
+                .bindPopup(popupOng(p.o), { minWidth: 210 });
+              enquadraveis.push([p.lat, p.lng]);
+              continue;
+            }
+            const cidades = [...new Set(itens.map((p) => p.cidade).filter(Boolean))];
+            const lista = cidades.slice(0, 3).join(', ')
+              + (cidades.length > 3 ? ` e mais ${cidades.length - 3}` : '');
+            desenharBolha({
+              itens,
+              lat: itens.reduce((s, p) => s + p.lat, 0) / itens.length,
+              lng: itens.reduce((s, p) => s + p.lng, 0) / itens.length,
+            }, '', `${itens.length} ONGs${lista ? ' - ' + lista : ''}`);
+          }
+        } else {
+          // Detalhe: só o que está na área visível, senão continuariam sendo
+          // 2.000 marcadores no DOM mesmo com o mapa mostrando uma cidade.
+          const area = map.getBounds();
+          for (const p of filtrados) {
+            if (!t && !area.contains([p.lat, p.lng])) continue;
+            L.marker([p.lat, p.lng], { icon: pinOng(p.o) }).addTo(grupo)
+              .bindPopup(popupOng(p.o), { minWidth: 210 });
+            enquadraveis.push([p.lat, p.lng]);
+          }
         }
-        if (pts.length) { try { map.fitBounds(pts, { padding: [70, 70], maxZoom: 12 }); } catch {} }
+
+        if (enquadrar && enquadraveis.length) {
+          try { map.fitBounds(enquadraveis, { padding: [70, 70], maxZoom: 12 }); } catch {}
+        }
         // Contador de resultados + botão de limpar (só quando há filtro).
         const cont = $('#mapa-contador'), lim = $('#mapa-limpar');
         if (cont) {
           if (t) {
-            cont.textContent = pts.length ? `${pts.length} resultado(s)` : 'Nenhuma ONG encontrada';
+            cont.textContent = filtrados.length ? `${filtrados.length} resultado(s)` : 'Nenhuma ONG encontrada';
             cont.classList.remove('hidden');
           } else cont.classList.add('hidden');
         }
         if (lim) lim.classList.toggle('hidden', !t);
+        const dica = $('#mapa-dica');
+        if (dica) dica.classList.toggle('hidden', nivel === 'ong');
       }
-      pintar(mapaState.termo);
-      $('#mapa-busca').addEventListener('input', (e) => { mapaState.termo = e.target.value; pintar(e.target.value); });
+      pintar(mapaState.termo, true);
+      // Repinta ao mover/aproximar: é o que troca bolhas por pinos e mantém no
+      // DOM só os marcadores da área visível. Sem reenquadrar (senão o mapa
+      // brigaria com o zoom que o usuário acabou de dar).
+      map.on('zoomend moveend', () => pintar(mapaState.termo, false));
+      $('#mapa-busca').addEventListener('input', (e) => { mapaState.termo = e.target.value; pintar(e.target.value, true); });
       $('#mapa-limpar').addEventListener('click', () => {
-        mapaState.termo = ''; const b = $('#mapa-busca'); if (b) { b.value = ''; b.focus(); } pintar('');
+        mapaState.termo = ''; const b = $('#mapa-busca'); if (b) { b.value = ''; b.focus(); } pintar('', true);
       });
       // "Ver todas as ONGs": limpa o filtro e reenquadra TODOS os marcadores.
       // Antes só repintava com o filtro atual — com uma busca ativa o botão
@@ -2376,7 +2515,9 @@ const App = (() => {
         mapaState.termo = '';
         const b = $('#mapa-busca');
         if (b) b.value = '';
-        pintar('');
+        // Volta para a visão do Brasil inteiro (agrupada por estado).
+        try { map.setZoom(ZOOM_ESTADO_ATE - 3); } catch {}
+        pintar('', true);
       });
       setTimeout(() => { try { map.invalidateSize(); } catch {} }, 200);
     } catch (e) { root().innerHTML = erroBox(e.message, 'mapa'); }

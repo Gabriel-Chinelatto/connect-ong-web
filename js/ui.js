@@ -49,6 +49,18 @@ const UI = (() => {
 
   // UF do Brasil + municípios IBGE (offline, do asset copiado do mobile).
   const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+  // Nome por extenso do estado, usado na dica do mapa agrupado
+  // ("São Paulo: 57 ONGs" ao passar o mouse na bolha).
+  const NOME_UF = {
+    AC: 'Acre', AL: 'Alagoas', AP: 'Amapá', AM: 'Amazonas', BA: 'Bahia',
+    CE: 'Ceará', DF: 'Distrito Federal', ES: 'Espírito Santo', GO: 'Goiás',
+    MA: 'Maranhão', MT: 'Mato Grosso', MS: 'Mato Grosso do Sul',
+    MG: 'Minas Gerais', PA: 'Pará', PB: 'Paraíba', PR: 'Paraná',
+    PE: 'Pernambuco', PI: 'Piauí', RJ: 'Rio de Janeiro',
+    RN: 'Rio Grande do Norte', RS: 'Rio Grande do Sul', RO: 'Rondônia',
+    RR: 'Roraima', SC: 'Santa Catarina', SP: 'São Paulo', SE: 'Sergipe',
+    TO: 'Tocantins',
+  };
   let _municipios = null;
   async function carregarMunicipios() {
     if (_municipios) return _municipios;
@@ -135,6 +147,6 @@ const UI = (() => {
   return {
     esc, brl, cat, catChip, normalizarCat, chaveCat, CANONICAS,
     avatar, fotoSrc, iniciais, corNome, toast, dataCurta, horaCurta, estrelas,
-    UFS, carregarMunicipios,
+    UFS, NOME_UF, carregarMunicipios,
   };
 })();
