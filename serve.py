@@ -79,7 +79,47 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionAbortedError):
             pass
 
+    # ------------------------------------------------------------------
+    # Mapa OFFLINE para a feira: o app (rodando local) pede os tiles por
+    # /tiles/{z}/{x}/{y}.png. Servimos do cache em disco (tiles-cache/); se
+    # nao tiver e houver internet, buscamos no CARTO e guardamos. Assim o
+    # mapa funciona mesmo sem Wi-Fi no estande (pre-carga: baixar_tiles.py).
+    # ------------------------------------------------------------------
+    _TILES_DIR = os.path.join(WEB_DIR, 'tiles-cache')
+    _TILES_UPSTREAM = 'https://a.basemaps.cartocdn.com/rastertiles/voyager/%s'
+
+    def _tile(self):
+        rel = self.path.split('?', 1)[0][len('/tiles/'):]
+        partes = rel.split('/')
+        if len(partes) != 3 or '..' in rel or not rel.endswith('.png'):
+            return self._relay(404, [('Content-Type', 'text/plain')], b'tile invalido')
+        arq = os.path.join(self._TILES_DIR, *partes)
+        if not os.path.isfile(arq):
+            try:
+                req = urllib.request.Request(
+                    self._TILES_UPSTREAM % rel,
+                    headers={'User-Agent': 'ConnectONG-feira/1.0'})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    dado = resp.read()
+                os.makedirs(os.path.dirname(arq), exist_ok=True)
+                with open(arq, 'wb') as f:
+                    f.write(dado)
+            except Exception:
+                # Sem internet e sem cache: devolve um PNG transparente 1x1
+                # para o Leaflet nao encher o console de erro.
+                dado = (b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
+                        b'\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89'
+                        b'\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01'
+                        b'\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82')
+                return self._relay(200, [('Content-Type', 'image/png')], dado)
+        with open(arq, 'rb') as f:
+            dado = f.read()
+        return self._relay(200, [('Content-Type', 'image/png'),
+                                 ('Cache-Control', 'public, max-age=604800')], dado)
+
     def do_GET(self):
+        if self.path.startswith('/tiles/'):
+            return self._tile()
         if is_static(self.path):
             return super().do_GET()
         return self._proxy()

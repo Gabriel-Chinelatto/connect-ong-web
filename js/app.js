@@ -2325,8 +2325,14 @@ const App = (() => {
       // (relatado em 10/08/2026). Agora os dois temas usam o mesmo mapa legível
       // (Voyager) e o tema escuro apenas o escurece por filtro no CSS
       // (.tema-escuro .leaflet-tile) — preserva o contraste das ruas.
-      const urlTiles =
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+      // Rodando LOCAL (feira), os tiles passam pelo serve.py (/tiles/...),
+      // que tem cache em disco — o mapa funciona mesmo sem internet no
+      // estande. No site publicado nada muda (vai direto ao CARTO).
+      const rodandoLocal =
+        location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+      const urlTiles = rodandoLocal
+        ? '/tiles/{z}/{x}/{y}.png'
+        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
       L.tileLayer(urlTiles, {
         maxZoom: 19, subdomains: 'abcd',
         attribution: '© OpenStreetMap © CARTO',
