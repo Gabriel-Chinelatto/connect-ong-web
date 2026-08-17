@@ -668,7 +668,7 @@ const App = (() => {
     const c = (state.campanhas || []).find((x) => x.id === campanhaId);
     if (!c) return;
     abrirModal(`
-      <div class="p-7">
+      <div data-avisar-saida class="p-7">
         <div class="text-center mb-6">
           <div class="w-14 h-14 bg-accent-light rounded-full flex items-center justify-center mx-auto mb-3 text-accent"><i class="ph-fill ph-pix-logo text-3xl"></i></div>
           <h3 class="text-xl font-montserrat font-bold text-textDark">Contribuir com ${UI.esc(c.titulo)}</h3>
@@ -1230,7 +1230,7 @@ const App = (() => {
 
   function abrirDenuncia(ongId, ongNome) {
     const MOTIVOS = [['CONTEUDO_INADEQUADO', 'Conteúdo inadequado'], ['FRAUDE', 'Fraude'], ['SPAM', 'Spam'], ['ABUSO', 'Abuso'], ['OUTRO', 'Outro']];
-    abrirModal(`<form id="f-denuncia" class="p-7 space-y-3">
+    abrirModal(`<form id="f-denuncia" data-avisar-saida class="p-7 space-y-3">
       <h3 class="text-xl font-montserrat font-bold text-textDark text-center mb-1">Denunciar ${UI.esc(ongNome)}</h3>
       <select name="motivo" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
         ${MOTIVOS.map(([v, r]) => `<option value="${v}">${r}</option>`).join('')}
@@ -1383,7 +1383,7 @@ const App = (() => {
     }
     if (!podeAvaliar) { UI.toast('Você ainda não concluiu uma doação para esta ONG — só é possível avaliar depois de doar 💚', 'aviso'); return; }
     let nota = 5;
-    abrirModal(`<div class="p-7">
+    abrirModal(`<div data-avisar-saida class="p-7">
       <h3 class="text-xl font-montserrat font-bold text-textDark text-center">Avaliar ${UI.esc(ongNome)}</h3>
       <p class="text-sm text-textGrey text-center mt-1">Sua nota ajuda outros doadores.</p>
       <div id="estrelas-input" class="flex justify-center gap-2 my-6">
@@ -1789,7 +1789,7 @@ const App = (() => {
 
   // Modais de segurança / perfil
   function abrirAlterarSenha() {
-    abrirModal(`<form id="f-senha" class="p-7 space-y-4">
+    abrirModal(`<form id="f-senha" data-avisar-saida class="p-7 space-y-4">
       <h3 class="text-xl font-montserrat font-bold text-textDark text-center">Alterar senha</h3>
       <input name="atual" type="password" required placeholder="Senha atual" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       <input name="nova" type="password" required minlength="4" placeholder="Nova senha" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
@@ -1804,7 +1804,7 @@ const App = (() => {
     });
   }
   function abrirAlterarEmail() {
-    abrirModal(`<form id="f-email" class="p-7 space-y-4">
+    abrirModal(`<form id="f-email" data-avisar-saida class="p-7 space-y-4">
       <h3 class="text-xl font-montserrat font-bold text-textDark text-center">Alterar e-mail</h3>
       <input name="email" type="email" required placeholder="Novo e-mail" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       <input name="senha" type="password" required placeholder="Sua senha" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
@@ -2197,10 +2197,11 @@ const App = (() => {
     $('#modal-x').addEventListener('click', fecharModalPeloUsuario);
     $('#modal-bg').addEventListener('click', (e) => { if (e.target.id === 'modal-bg') fecharModalPeloUsuario(); });
     // Marca "tem alteracao pendente" quando se digita num formulario de EDICAO
-    // (os marcados com data-avisar-saida). Buscas e o chat ficam de fora de
-    // proposito — avisar ali so atrapalharia.
+    // (qualquer elemento marcado com data-avisar-saida — form OU div, pois
+    // alguns modais, como avaliar e PIX, nao sao <form>). Buscas e o chat
+    // ficam de fora de proposito — avisar ali so atrapalharia.
     $('#modal-root').addEventListener('input', (e) => {
-      if (e.target.closest('form[data-avisar-saida]')) modalSujo = true;
+      if (e.target.closest('[data-avisar-saida]')) modalSujo = true;
     });
   }
 
@@ -3268,7 +3269,7 @@ const App = (() => {
   }
 
   function abrirEsqueciSenha() {
-    abrirModal(`<form id="form-esqueci" class="p-7 space-y-4">
+    abrirModal(`<form id="form-esqueci" data-avisar-saida class="p-7 space-y-4">
       <div class="text-center mb-2"><div class="w-14 h-14 bg-primary-light rounded-full flex items-center justify-center mx-auto mb-3 text-primary"><i class="ph ph-lock-key-open text-3xl"></i></div>
         <h3 class="text-xl font-montserrat font-bold text-textDark">Recuperar senha</h3><p class="text-sm text-textGrey mt-1">Enviaremos um código para seu e-mail.</p></div>
       <input name="email" type="email" required placeholder="Seu e-mail" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
