@@ -17,6 +17,7 @@ regra de CORS (trata como requisicao normal do proprio servidor).
 """
 import os
 import sys
+import socket
 import http.server
 import socketserver
 import urllib.request
@@ -150,9 +151,61 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    # SO_REUSEADDR significa coisas DIFERENTES em cada sistema:
+    #   - Linux/macOS: so reaproveita porta em TIME_WAIT (o que queremos, para
+    #     religar o servidor logo depois de parar);
+    #   - WINDOWS: deixa ligar numa porta que OUTRO PROCESSO ja esta usando, sem
+    #     erro nenhum. O serve.py imprimia "Connect ONG em http://localhost:8090"
+    #     como se estivesse tudo certo, mas quem respondia o navegador podia ser
+    #     o outro programa — foi assim que o site apareceu como "HTTP ERROR 501"
+    #     no computador da apresentacao (2026-08-20). Por isso, no Windows,
+    #     desligamos e checamos a porta antes (ver porta_ocupada).
+    allow_reuse_address = (os.name != 'nt')
+
+
+def porta_ocupada(porta):
+    """True se alguem JA esta atendendo nesta porta (nao somos nos)."""
+    with socket.socket() as s:
+        s.settimeout(0.4)
+        return s.connect_ex(('127.0.0.1', porta)) == 0
+
+
+def como_liberar(porta):
+    if os.name == 'nt':
+        return ('  Para ver quem esta ocupando e liberar (PowerShell):\n'
+                '    Get-NetTCPConnection -LocalPort %d -State Listen |\n'
+                '      ForEach-Object { Get-Process -Id $_.OwningProcess }\n'
+                '    Get-NetTCPConnection -LocalPort %d -State Listen |\n'
+                '      ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }\n'
+                '  (costuma ser um "dartvm"/"python" sobrando de outra vez)' % (porta, porta))
+    return '  Para ver quem esta ocupando:  lsof -i :%d' % porta
 
 
 if __name__ == '__main__':
-    print('Connect ONG em http://localhost:%d  (API -> %s)' % (PORT, BACKEND))
-    Server(('0.0.0.0', PORT), Handler).serve_forever()
+    # Pasta errada: sem index.html isto aqui nao e o site.
+    if not os.path.isfile(os.path.join(WEB_DIR, 'index.html')):
+        print('ERRO: nao achei index.html em %s' % WEB_DIR)
+        print('      Rode o serve.py de dentro da pasta do site.')
+        sys.exit(1)
+
+    if porta_ocupada(PORT):
+        print('ERRO: a porta %d JA ESTA OCUPADA por outro programa.' % PORT)
+        print('      Se abrir o navegador agora, quem responde e ELE, nao o site')
+        print('      (foi o que deu "HTTP ERROR 501" no dia da apresentacao).')
+        print(como_liberar(PORT))
+        print('      Ou use outra porta:  python serve.py %d %s' % (PORT + 1, BACKEND))
+        sys.exit(1)
+
+    try:
+        servidor = Server(('0.0.0.0', PORT), Handler)
+    except OSError as e:
+        print('ERRO: nao consegui ligar na porta %d (%s).' % (PORT, e))
+        print(como_liberar(PORT))
+        sys.exit(1)
+
+    # Dica de velocidade: no Windows, "localhost" resolve IPv6 primeiro e o
+    # navegador perde ~2s por requisicao ate cair para IPv4. Por 127.0.0.1 e
+    # instantaneo.
+    print('Connect ONG em http://127.0.0.1:%d  (API -> %s)' % (PORT, BACKEND))
+    print('(prefira 127.0.0.1 a localhost: no Windows e MUITO mais rapido)')
+    servidor.serve_forever()
