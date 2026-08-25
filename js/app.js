@@ -1062,13 +1062,18 @@ const App = (() => {
   }
   function cardOng(o) {
     const fav = state.favIds && state.favIds.has(o.id);
-    const capa = UI.fotoSrc(o.capaBase64);
+    // Capa e logo vem por URL, nao no JSON da listagem: sao 2.000 ONGs numa
+    // resposta so. Com loading="lazy" o navegador baixa apenas as que aparecem
+    // na tela, e o onerror tira a <img> das ONGs que nao tem capa (404),
+    // deixando o gradiente que ja existia.
+    const capa = UI.esc(API.urlImagemOng(o.id, 'capa'));
     return `<div data-perfil-ong="${o.id}" class="ong-card bg-white rounded-2xl shadow-card border border-gray-100 overflow-hidden hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer group">
-      <div class="h-16 relative ${capa ? '' : 'bg-gradient-to-r from-primary to-primary-dark'}" ${capa ? `style="background-image:url('${capa}');background-size:cover;background-position:center"` : ''}>
+      <div class="h-16 relative overflow-hidden bg-gradient-to-r from-primary to-primary-dark">
+        <img src="${capa}" alt="" loading="lazy" onerror="this.remove()" class="absolute inset-0 w-full h-full object-cover">
         <button data-fav="${o.id}" class="absolute top-2 right-2 w-9 h-9 rounded-full bg-white/90 flex items-center justify-center ${fav ? 'text-accent' : 'text-gray-400 hover:text-accent'} shadow"><i class="ph${fav ? '-fill' : ''} ph-star text-lg"></i></button>
       </div>
       <div class="px-5 pb-5">
-        <div class="w-14 h-14 rounded-2xl border-4 border-white -mt-7 relative bg-white">${UI.avatar(o.nome, 'w-full h-full text-base rounded-xl')}
+        <div class="w-14 h-14 rounded-2xl border-4 border-white -mt-7 relative bg-white">${UI.avatarOngUrl(o.id, o.nome, 'w-full h-full text-base', 'rounded-xl')}
           ${o.verificada ? '<span class="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center"><i class="ph-fill ph-seal-check text-primary text-sm"></i></span>' : ''}
         </div>
         <p class="font-montserrat font-bold text-textDark leading-tight mt-2 group-hover:text-primary transition-colors">${UI.esc(o.nome)}</p>
@@ -1102,7 +1107,7 @@ const App = (() => {
         </div>
         <div class="px-6 pb-6">
           <!-- Avatar sobreposto -->
-          <div class="w-20 h-20 rounded-2xl border-4 border-white shadow -mt-10 relative bg-white">${UI.avatar(p.nome, 'w-full h-full text-2xl rounded-xl')}
+          <div class="w-20 h-20 rounded-2xl border-4 border-white shadow -mt-10 relative bg-white">${UI.avatar(p.nome, 'w-full h-full text-2xl rounded-xl', p.logoBase64)}
             ${p.verificada ? '<span class="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center"><i class="ph-fill ph-seal-check text-primary"></i></span>' : ''}
           </div>
           <h3 class="text-2xl font-montserrat font-extrabold text-textDark mt-3">${UI.esc(p.nome)}</h3>
@@ -1291,7 +1296,7 @@ const App = (() => {
           </header>
           <div class="h-40 md:h-56 relative ${capa ? '' : 'bg-gradient-to-r from-primary to-primary-dark'}" ${capa ? `style="background-image:url('${capa}');background-size:cover;background-position:center"` : ''}>${capa ? '<div class="absolute inset-0 bg-black/40"></div>' : ''}</div>
           <div class="max-w-2xl mx-auto px-5 pb-24">
-            <div class="w-24 h-24 rounded-3xl border-4 border-white shadow -mt-12 relative bg-white">${UI.avatar(p.nome, 'w-full h-full text-3xl rounded-2xl')}${p.verificada ? '<span class="absolute -bottom-1 -right-1 w-7 h-7 bg-white rounded-full flex items-center justify-center"><i class="ph-fill ph-seal-check text-primary text-lg"></i></span>' : ''}</div>
+            <div class="w-24 h-24 rounded-3xl border-4 border-white shadow -mt-12 relative bg-white">${UI.avatar(p.nome, 'w-full h-full text-3xl rounded-2xl', p.logoBase64)}${p.verificada ? '<span class="absolute -bottom-1 -right-1 w-7 h-7 bg-white rounded-full flex items-center justify-center"><i class="ph-fill ph-seal-check text-primary text-lg"></i></span>' : ''}</div>
             <h1 class="text-3xl font-montserrat font-extrabold text-textDark mt-3">${UI.esc(p.nome)}</h1>
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-textGrey">
               <span><i class="ph ph-map-pin"></i> ${UI.esc(p.cidade || 'Brasil')}</span>
@@ -2642,7 +2647,7 @@ const App = (() => {
       return `<th class="p-4 align-bottom" style="width:${Math.floor(72 / perfis.length)}%">
         <div class="flex flex-col items-center gap-2">
           <button data-cmp-rm="${p.id}" class="self-end -mb-1 text-textGrey hover:text-red-500" title="Remover"><i class="ph ph-x-circle text-lg"></i></button>
-          ${UI.avatar(p.nome, 'w-14 h-14 text-lg')}
+          ${UI.avatar(p.nome, 'w-14 h-14 text-lg', p.logoBase64)}
           <button data-perfil-ong="${p.id}" class="font-montserrat font-bold text-textDark text-sm leading-tight hover:text-primary text-center">${UI.esc(p.nome)} ${p.verificada ? '<i class="ph-fill ph-seal-check text-primary text-xs"></i>' : ''}</button>
           ${p.nivelTransparencia ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${nv.cls || 'bg-gray-100'}">${nv.emoji || ''} ${p.nivelTransparencia}</span>` : ''}
         </div></th>`;

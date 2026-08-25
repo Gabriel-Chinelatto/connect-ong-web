@@ -101,6 +101,21 @@ const UI = (() => {
       style="background:${corNome(nome)}">${esc(iniciais(nome))}</div>`;
   }
 
+  // Avatar de uma ONG usando o LOGO servido por URL (GET /publico/ongs/{id}/logo).
+  // A inicial fica desenhada embaixo; a <img> cobre por cima e se REMOVE sozinha
+  // quando a ONG nao tem logo (o endpoint responde 404). Assim nunca aparece
+  // icone de imagem quebrada e nao e preciso saber de antemao quem tem logo.
+  function avatarOngUrl(ongId, nome, tamanho = 'w-12 h-12 text-base', arredondado = 'rounded-full') {
+    const base = `<div class="${tamanho} ${arredondado} flex items-center justify-center font-montserrat font-bold text-white flex-shrink-0"
+      style="background:${corNome(nome)}">${esc(iniciais(nome))}</div>`;
+    if (!ongId && ongId !== 0) return base;
+    const src = esc(API.urlImagemOng(ongId, 'logo'));
+    return `<div class="${tamanho} ${arredondado} relative overflow-hidden flex-shrink-0">${base}
+      <img src="${src}" alt="" loading="lazy" onerror="this.remove()"
+        class="absolute inset-0 w-full h-full object-cover">
+    </div>`;
+  }
+
   // Toast in-app (canto inferior direito), colorido por tipo.
   function toast(msg, tipo = 'ok') {
     const cores = {
@@ -146,7 +161,7 @@ const UI = (() => {
 
   return {
     esc, brl, cat, catChip, normalizarCat, chaveCat, CANONICAS,
-    avatar, fotoSrc, iniciais, corNome, toast, dataCurta, horaCurta, estrelas,
+    avatar, avatarOngUrl, fotoSrc, iniciais, corNome, toast, dataCurta, horaCurta, estrelas,
     UFS, NOME_UF, carregarMunicipios,
   };
 })();

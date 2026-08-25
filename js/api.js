@@ -175,6 +175,13 @@ const API = (() => {
 
     // ONGs / perfil público
     ongs: () => get('/ongs'),
+    // URL da imagem de uma ONG (logo | capa). Endpoint PUBLICO: entra direto
+    // no src de uma <img>, sem header Authorization (que <img> nao manda).
+    // Existe porque a listagem devolve TODAS as ONGs de uma vez — embutir a
+    // imagem de cada uma no JSON levaria a resposta a dezenas de MB. Assim o
+    // navegador busca so as que aparecem na tela (loading="lazy") e guarda em
+    // cache.
+    urlImagemOng: (ongId, qual) => `${BASE}/publico/ongs/${ongId}/${qual}`,
     perfilOng: (ongId) => get('/ongs/' + ongId + '/perfil-publico'),
     transparenciaOng: (ongId) => get('/ongs/' + ongId + '/transparencia'),
 
