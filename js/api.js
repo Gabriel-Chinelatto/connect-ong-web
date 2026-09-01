@@ -175,6 +175,13 @@ const API = (() => {
 
     // ONGs / perfil público
     ongs: () => get('/ongs'),
+    // Um PEDACO da lista, para a rolagem infinita da aba de ONGs. Sao 2.000
+    // instituicoes: montar as 2.000 cards de uma vez travava a aba. Fim da
+    // lista = pagina VAZIA (o servidor filtra bloqueios depois de paginar,
+    // entao uma pagina cheia pode chegar menor).
+    ongsPagina: (pagina, tamanho, termo) =>
+      get('/ongs?pagina=' + pagina + '&tamanho=' + tamanho
+        + (termo ? '&nome=' + encodeURIComponent(termo) : '')),
     // URL da imagem de uma ONG (logo | capa). Endpoint PUBLICO: entra direto
     // no src de uma <img>, sem header Authorization (que <img> nao manda).
     // Existe porque a listagem devolve TODAS as ONGs de uma vez — embutir a

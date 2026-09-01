@@ -993,31 +993,112 @@ const App = (() => {
     PRATA: { cls: 'bg-gray-200 text-gray-700', emoji: '🥈' },
     BRONZE: { cls: 'bg-orange-100 text-orange-700', emoji: '🥉' },
   };
-  const buscarOng = { termo: '' };
+  // ---- Aba de ONGs: rolagem infinita ---------------------------------------
+  // Antes esta aba baixava as 2.000 instituicoes de uma vez e montava as 2.000
+  // cards no mesmo innerHTML — sao ~4.000 <img> no documento. E refazia TUDO a
+  // cada tecla digitada na busca. Travava.
+  //
+  // Agora vem POR_PAGINA por vez, os cards novos sao ACRESCENTADOS (o que ja
+  // esta na tela nao e refeito) e a busca vai para o servidor com um respiro
+  // depois da ultima tecla.
+  //
+  // Repare que isto NAO mexe em state.ongs: o mapa, o comparador e a busca
+  // rapida (Ctrl+K) precisam da lista inteira e continuam pedindo por conta.
+  const POR_PAGINA = 24;
+  const ESPERA_DIGITACAO = 400;
+  const listaOngs = {
+    itens: [], pagina: 0, temMais: true, carregando: false,
+    termo: '', buscaId: 0, observador: null, debounce: null,
+  };
+
+  function pararListaOngs() {
+    if (listaOngs.observador) { listaOngs.observador.disconnect(); listaOngs.observador = null; }
+    if (listaOngs.debounce) { clearTimeout(listaOngs.debounce); listaOngs.debounce = null; }
+  }
+
   async function viewOngs() {
+    pararListaOngs();
     root().innerHTML = carregando();
     try {
-      const [ongs] = await Promise.all([API.ongs(), carregarFavIds()]);
-      state.ongs = ongs;
+      await carregarFavIds();
       root().innerHTML = `
         <div class="relative w-full md:w-1/2 mb-6 slide-up">
           <i class="ph ph-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-textGrey text-xl"></i>
           <input id="busca-ong" placeholder="Buscar ONGs por nome ou cidade…"
             class="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-gray-200 shadow-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
         </div>
-        <div id="grid-ong"></div>`;
-      pintarOngs(ongs);
-      $('#busca-ong').addEventListener('input', (e) => { buscarOng.termo = e.target.value; pintarOngs(ongs); });
+        <div id="grid-ong" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+        <div id="fim-ong" class="py-10"></div>`;
+
+      $('#busca-ong').addEventListener('input', (e) => {
+        const termo = e.target.value;
+        clearTimeout(listaOngs.debounce);
+        listaOngs.debounce = setTimeout(() => reiniciarListaOngs(termo), ESPERA_DIGITACAO);
+      });
+
+      // A sentinela no fim da lista pede a proxima pagina quando chega perto da
+      // tela — 600px antes, para a pagina nova estar pronta antes de ser vista.
+      listaOngs.observador = new IntersectionObserver((entradas) => {
+        if (entradas.some((x) => x.isIntersecting)) carregarMaisOngs();
+      }, { rootMargin: '600px' });
+      listaOngs.observador.observe($('#fim-ong'));
+
+      reiniciarListaOngs('');
     } catch (e) { root().innerHTML = erroBox(e.message, 'ongs'); }
   }
-  function pintarOngs(ongs) {
+
+  function reiniciarListaOngs(termo) {
     fecharHoverOng();
-    const t = buscarOng.termo.trim().toLowerCase();
-    const f = ongs.filter((o) => !t || (o.nome + ' ' + (o.cidade || '')).toLowerCase().includes(t));
-    $('#grid-ong').innerHTML = f.length
-      ? `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 slide-up">${f.map(cardOng).join('')}</div>`
-      : vazio('ph-buildings', 'Nenhuma ONG', 'Tente outro termo.');
-    ligarHoverOng();
+    listaOngs.itens = [];
+    listaOngs.pagina = 0;
+    listaOngs.temMais = true;
+    listaOngs.termo = (termo || '').trim();
+    listaOngs.buscaId += 1;   // invalida resposta de busca anterior que ainda venha
+    const grid = $('#grid-ong');
+    if (grid) grid.innerHTML = '';
+    carregarMaisOngs();
+  }
+
+  async function carregarMaisOngs() {
+    if (listaOngs.carregando || !listaOngs.temMais) return;
+    listaOngs.carregando = true;
+    const id = listaOngs.buscaId;
+    pintarRodapeOngs('carregando');
+    try {
+      const pagina = await API.ongsPagina(listaOngs.pagina, POR_PAGINA, listaOngs.termo);
+      if (id !== listaOngs.buscaId) return;   // uma busca mais nova assumiu
+      listaOngs.itens.push(...pagina);
+      listaOngs.pagina += 1;
+      listaOngs.temMais = pagina.length > 0;
+      const grid = $('#grid-ong');
+      if (grid && pagina.length) {
+        grid.insertAdjacentHTML('beforeend', pagina.map(cardOng).join(''));
+        ligarHoverOng();
+      }
+      pintarRodapeOngs(listaOngs.itens.length ? 'fim' : 'vazio');
+    } catch (e) {
+      if (id === listaOngs.buscaId) pintarRodapeOngs('erro', e.message);
+    } finally {
+      if (id === listaOngs.buscaId) listaOngs.carregando = false;
+    }
+  }
+
+  function pintarRodapeOngs(estado, msg) {
+    const fim = $('#fim-ong');
+    if (!fim) return;
+    if (estado === 'carregando') {
+      fim.innerHTML = `<div class="flex justify-center text-textGrey"><i class="ph ph-circle-notch spin text-2xl"></i></div>`;
+    } else if (estado === 'vazio') {
+      fim.innerHTML = vazio('ph-buildings', 'Nenhuma ONG', 'Tente outro termo.');
+    } else if (estado === 'erro') {
+      fim.innerHTML = `<p class="text-center text-sm text-red-600">Não foi possível carregar mais. ${UI.esc(msg || '')}</p>`;
+    } else if (!listaOngs.temMais) {
+      const n = listaOngs.itens.length;
+      fim.innerHTML = `<p class="text-center text-sm text-textGrey">${n} ONG${n === 1 ? '' : 's'} ${n === 1 ? 'encontrada' : 'encontradas'}</p>`;
+    } else {
+      fim.innerHTML = '';
+    }
+  }
   }
   // Preview flutuante da ONG ao pausar o mouse sobre o card (recurso de web).
   let hoverTimer = null, hoverPop = null;
@@ -1037,11 +1118,17 @@ const App = (() => {
     </div>`;
   }
   function ligarHoverOng() {
-    document.querySelectorAll('.ong-card').forEach((card) => {
+    // So os cards ainda sem listener: a rolagem infinita chama esta funcao a
+    // cada pagina, e sem a marca os cards antigos ganhariam listener repetido.
+    document.querySelectorAll('.ong-card:not([data-hover])').forEach((card) => {
+      card.dataset.hover = '1';
       card.addEventListener('mouseenter', () => {
         fecharHoverOng();
         const id = Number(card.dataset.perfilOng);
-        const o = (state.ongs || []).find((x) => x.id === id);
+        // Procura primeiro no que a aba de ONGs ja carregou (a lista
+        // paginada), depois na lista completa que outras telas guardam.
+        const o = listaOngs.itens.find((x) => x.id === id)
+          || (state.ongs || []).find((x) => x.id === id);
         if (!o) return;
         hoverTimer = setTimeout(() => {
           hoverTimer = null;
@@ -1365,8 +1452,9 @@ const App = (() => {
     try {
       if (jaEra) { await API.desfavoritar(id); state.favIds.delete(id); UI.toast('Removida dos favoritos', 'info'); }
       else { await API.favoritar(id); state.favIds.add(id); UI.toast('Adicionada aos favoritos ⭐', 'ok'); }
-      // Repinta a tela/modal aberto
-      if (state.rota === 'ongs' && state.ongs) pintarOngs(state.ongs);
+      // Repinta a tela/modal aberto. A aba de ONGs NAO entra aqui: ela e
+      // paginada, e repintar do zero perderia a rolagem — a estrela do card
+      // ja e trocada no lugar logo abaixo.
       if (state.rota === 'favoritos') viewFavoritos();
       // Atualiza estrela onde estiver (card, perfil) preservando o tamanho.
       document.querySelectorAll(`[data-fav="${id}"]`).forEach((b) => {
