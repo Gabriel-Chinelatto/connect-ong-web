@@ -72,6 +72,10 @@ const App = (() => {
     { id: 'mapa',      label: 'Mapa de ONGs', icon: 'ph-map-trifold', g: 'w' },
     { id: 'comparar',  label: 'Comparar ONGs', icon: 'ph-scales', g: 'w' },
     { id: 'showcase',  label: 'Modo Quiosque', icon: 'ph-presentation-chart', g: 'w' },
+    // Plano de Ação pós-FECITEC
+    { id: 'resultados', label: 'Resultados', icon: 'ph-chart-bar', g: 'w' },
+    { id: 'planos',     label: 'Para empresas', icon: 'ph-briefcase', g: 'w' },
+    { id: 'seguranca',  label: 'Segurança e LGPD', icon: 'ph-shield-check', g: 'w' },
   ];
   const TITULOS = {
     inicio: 'Painel de Impacto', explorar: 'Explorar Necessidades',
@@ -80,6 +84,7 @@ const App = (() => {
     ranking: 'Ranking de Transparência', doacoes: 'Minhas Doações', config: 'Ajustes',
     sobre: 'Sobre o Connect ONG', atividades: 'Atividades da Comunidade',
     mapa: 'Mapa de ONGs', comparar: 'Comparar ONGs',
+    resultados: 'Resultados da Plataforma', planos: 'Para Empresas e Prefeituras', seguranca: 'Segurança e LGPD',
   };
 
   function botaoNav(r) {
@@ -839,6 +844,7 @@ const App = (() => {
           </div>
           <div id="dora-msgs" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
           <div id="dora-preview" class="hidden px-4 pt-2"></div>
+          <p class="px-4 pt-2 text-[11px] text-textGrey text-center">Respostas geradas por IA podem conter erros. E-mail, telefone, CPF e CNPJ são removidos antes de a pergunta sair do site.</p>
           <form id="dora-form" class="p-3 border-t border-gray-100 flex items-center gap-2">
             <button type="button" id="dora-anexo-btn" class="w-11 h-11 flex-shrink-0 rounded-2xl bg-background hover:bg-gray-100 text-textGrey flex items-center justify-center"><i class="ph ph-image text-xl"></i></button>
             <input id="dora-anexo" type="file" accept="image/*" class="hidden">
@@ -1098,7 +1104,6 @@ const App = (() => {
     } else {
       fim.innerHTML = '';
     }
-  }
   }
   // Preview flutuante da ONG ao pausar o mouse sobre o card (recurso de web).
   let hoverTimer = null, hoverPop = null;
@@ -1885,14 +1890,19 @@ const App = (() => {
     abrirModal(`<form id="f-senha" data-avisar-saida class="p-7 space-y-4">
       <h3 class="text-xl font-montserrat font-bold text-textDark text-center">Alterar senha</h3>
       <input name="atual" type="password" required placeholder="Senha atual" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
-      <input name="nova" type="password" required minlength="4" placeholder="Nova senha" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <input name="nova" type="password" required minlength="8" placeholder="Nova senha (8+ com letras e números)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       <p data-erro class="text-sm font-semibold text-red-600 hidden"></p>
       <button class="btn-submit w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-2xl disabled:opacity-60">Salvar nova senha</button>
     </form>`, 'max-w-sm');
     $('#f-senha').addEventListener('submit', async (e) => {
       e.preventDefault(); const f = e.target, b = f.querySelector('.btn-submit'), er = f.querySelector('[data-erro]');
       er.classList.add('hidden'); b.disabled = true;
-      try { await API.alterarSenha(f.atual.value, f.nova.value); fecharModal(); UI.toast('Senha alterada ✓', 'ok'); }
+      try {
+        // Mesma regra da API (antes o site aceitava 4 caracteres e a API pedia 6).
+        const erroSenha = Validadores.senhaForte(f.nova.value);
+        if (erroSenha) throw new Error(erroSenha);
+        await API.alterarSenha(f.atual.value, f.nova.value); fecharModal(); UI.toast('Senha alterada ✓', 'ok');
+      }
       catch (x) { er.textContent = x.message; er.classList.remove('hidden'); b.disabled = false; }
     });
   }
@@ -1928,7 +1938,7 @@ const App = (() => {
         </label>
       </div>
       <input name="nome" required maxlength="80" value="${UI.esc(u.nome || '')}" placeholder="Nome" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
-      <input name="telefone" maxlength="20" value="${UI.esc(u.telefone || '')}" placeholder="Telefone" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+      <input name="telefone" inputmode="tel" maxlength="15" value="${UI.esc(u.telefone || '')}" placeholder="Telefone" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       <div class="grid grid-cols-3 gap-2">
         <select id="ep-uf" class="col-span-1 p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"><option value="">UF</option></select>
         <input id="ep-cidade" list="ep-cidades" value="${UI.esc(u.cidade || '')}" placeholder="Cidade" class="col-span-2 p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"><datalist id="ep-cidades"></datalist>
@@ -1938,6 +1948,7 @@ const App = (() => {
       <button class="btn-submit w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-2xl disabled:opacity-60">Salvar</button>
     </form>`, 'max-w-md');
     let fotoNova = null;
+    Validadores.mascaraTelefone(document.querySelector('#f-perfil [name="telefone"]'));
     const selUf = $('#ep-uf');
     UI.UFS.forEach((uf) => { const o = document.createElement('option'); o.value = uf; o.textContent = uf; if (uf === u.estado) o.selected = true; selUf.appendChild(o); });
     async function encherCidades() { const m = await UI.carregarMunicipios(); $('#ep-cidades').innerHTML = (m[selUf.value] || []).map((c) => `<option value="${UI.esc(c)}">`).join(''); }
@@ -1954,6 +1965,14 @@ const App = (() => {
       try {
         const dto = { nome: f.nome.value, telefone: f.telefone.value, cidade: $('#ep-cidade').value,
           estado: selUf.value, bio: f.bio.value };
+        // F-02: mesmas regras da API, antes de enviar.
+        const erroCampo = Validadores.primeiro([
+          ['Nome', Validadores.textoLegivel(dto.nome)],
+          ['Telefone', Validadores.telefone(dto.telefone)],
+          ['Cidade', Validadores.nomeProprio(dto.cidade)],
+          ['Bio', Validadores.textoLegivel(dto.bio)],
+        ]);
+        if (erroCampo) throw new Error(erroCampo);
         if (fotoNova) dto.fotoBase64 = fotoNova;
         await API.atualizarPerfil(dto);
         API.mesclarUsuario({ nome: dto.nome, telefone: dto.telefone, cidade: dto.cidade, estado: dto.estado, bio: dto.bio, ...(fotoNova ? { fotoBase64: fotoNova } : {}) });
@@ -2019,7 +2038,8 @@ const App = (() => {
     { n: 17, t: 'Parcerias e meios de implementação', cor: '#19486a' },
   ];
   const KVERSOES = [
-    { numero: 'v2.1', titulo: 'Voz, cartão de impacto, QR e PWA', atual: true, mudancas: ['Fale com a Dora e ouça as respostas (voz no navegador)', '"Meu cartão de impacto" para baixar e compartilhar', 'QR Code do perfil da ONG (abra no celular na hora)', 'Instale o Connect ONG como aplicativo (PWA) e use offline', 'Alertas do navegador quando rola um match'] },
+    { numero: 'v2.2', titulo: 'Plano de Ação pós-FECITEC', atual: true, mudancas: ['Campos validados de verdade (telefone com DDD, senha forte, nada de texto só com símbolos)', 'Dados sensíveis criptografados e página de Segurança e LGPD', 'Baixe todos os seus dados em um arquivo (LGPD)', 'Resultados: funil, taxa de atendimento e tempo de resposta', 'Para empresas: o modelo de negócio da plataforma'] },
+    { numero: 'v2.1', titulo: 'Voz, cartão de impacto, QR e PWA', mudancas: ['Fale com a Dora e ouça as respostas (voz no navegador)', '"Meu cartão de impacto" para baixar e compartilhar', 'QR Code do perfil da ONG (abra no celular na hora)', 'Instale o Connect ONG como aplicativo (PWA) e use offline', 'Alertas do navegador quando rola um match'] },
     { numero: 'v2.0', titulo: 'Recursos exclusivos da web', mudancas: ['Mapa interativo de ONGs (localize quem ajudar perto de você)', 'Comparador de ONGs lado a lado, com link compartilhável', 'Modo Quiosque em tela cheia para eventos e feiras', 'Relatório de impacto imprimível / em PDF', 'Busca rápida com atalho de teclado (Ctrl/Cmd + K)'] },
     { numero: 'v1.9', titulo: 'Frete inteligente e mais IA', mudancas: ['Navegação mais fluida com resposta ao toque', 'Simulador de frete no perfil da ONG (distância + peso)', 'IA estima o peso e avisa se a categoria não combina', 'Resumo de impacto da ONG escrito por IA', '"Sugestões para você" por perfil e cidade'] },
     { numero: 'v1.8', titulo: 'Revisão final de segurança', mudancas: ['Sessão protegida (volta ao login se expirar)', 'Privacidade real: telefone/e-mail só quando a ONG permite', 'Proteção contra abuso em contribuições/cadastro/senha'] },
@@ -3162,6 +3182,158 @@ const App = (() => {
   }
 
   // =========================================================================
+  // Plano de Ação pós-FECITEC — páginas novas
+  //   Resultados (F-08) · Para empresas (F-07) · Segurança e LGPD (F-05/F-04/F-10)
+  // =========================================================================
+  const pctFmt = (v) => (v == null ? '—' : String(v).replace('.', ',') + '%');
+  const diasFmt = (v) => (v == null ? '—' : v < 1 ? 'menos de 1 dia' : String(v).replace('.', ',') + ' dias');
+  const cartao = (conteudo, extra = '') =>
+    `<div class="bg-white rounded-3xl shadow-card border border-gray-100 p-6 ${extra}">${conteudo}</div>`;
+  const tituloSecao = (t, sub) =>
+    `<h4 class="text-xl font-montserrat font-bold text-textDark">${t}</h4>${sub ? `<p class="text-sm text-textGrey mb-4">${sub}</p>` : ''}`;
+  function barra(rotulo, valor, maximo, cor = 'bg-primary') {
+    const pct = maximo > 0 ? Math.min(100, (valor / maximo) * 100) : 0;
+    return `<div class="flex items-center gap-3 py-1.5">
+      <span class="w-56 text-sm font-semibold text-textDark truncate" title="${UI.esc(rotulo)}">${UI.esc(rotulo)}</span>
+      <div class="flex-1 h-5 bg-background rounded-lg overflow-hidden"><div class="${cor} h-full rounded-lg" style="width:${pct}%"></div></div>
+      <span class="w-16 text-right font-bold text-textDark">${UI.esc(valor)}</span></div>`;
+  }
+
+  // ---- F-08: indicadores públicos da plataforma ----
+  async function viewResultados() {
+    root().innerHTML = carregando('Calculando os indicadores…');
+    let d;
+    try { d = await API.indicadores(); } catch (e) { root().innerHTML = erroBox(e.message, 'resultados'); return; }
+    const f = d.funil || {};
+    const kpi = (v, l, dica) => `<div title="${UI.esc(dica || '')}" class="bg-white rounded-2xl shadow-card border border-gray-100 p-5">
+      <p class="text-3xl font-montserrat font-black text-primary">${UI.esc(v)}</p><p class="text-sm text-textGrey font-semibold mt-1">${l}</p></div>`;
+    const cats = d.porCategoria || [];
+    const maxCat = Math.max(1, ...cats.map((c) => c.necessidades));
+    const ufs = (d.porEstado || []).slice(0, 10);
+    const maxUf = Math.max(1, ...ufs.map((u) => u.necessidades));
+    const mensal = d.mensal || [];
+    const maxMes = Math.max(1, ...mensal.map((m) => m.interesses));
+    root().innerHTML = `<div class="max-w-5xl mx-auto space-y-6 slide-up pb-6">
+      <div><h3 class="text-2xl font-montserrat font-extrabold text-textDark">A plataforma funciona?</h3>
+        <p class="text-textGrey font-medium">Indicadores calculados agora, a partir do banco de dados real. Passe o mouse para ver a definição.</p></div>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        ${kpi(f.necessidades ?? 0, 'necessidades publicadas')}
+        ${kpi(pctFmt(d.taxaAtendimento), 'taxa de atendimento', 'Necessidades com ao menos uma doação concluída')}
+        ${kpi(pctFmt(d.taxaAceite), 'taxa de aceite', 'Interesses aceitos pelas ONGs entre os respondidos')}
+        ${kpi(diasFmt(d.diasAteRespostaDaOng), 'até a ONG responder', 'Mediana entre o interesse do doador e a resposta da ONG')}
+        ${kpi(diasFmt(d.diasAteConclusao), 'até a doação chegar', 'Mediana entre o interesse e a doação concluída')}
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        ${cartao(tituloSecao('Funil das necessidades', 'Quantas viram doação de verdade')
+          + barra('Publicadas', f.necessidades ?? 0, f.necessidades ?? 0)
+          + barra('Receberam interesse', f.necessidadesComInteresse ?? 0, f.necessidades ?? 0, 'bg-primary/80')
+          + barra('Atendidas', f.necessidadesAtendidas ?? 0, f.necessidades ?? 0, 'bg-primary/60'))}
+        ${cartao(tituloSecao('Funil dos interesses', 'O que acontece depois que alguém se oferece')
+          + barra('Recebidos', f.interesses ?? 0, f.interesses ?? 0, 'bg-indigo-500')
+          + barra('Aceitos', f.interessesAceitos ?? 0, f.interesses ?? 0, 'bg-indigo-400')
+          + barra('Concluídos', f.interessesConcluidos ?? 0, f.interesses ?? 0, 'bg-indigo-300')
+          + barra('Aguardando a ONG', f.interessesPendentes ?? 0, f.interesses ?? 0, 'bg-amber-400')
+          + barra('Recusados', f.interessesRecusados ?? 0, f.interesses ?? 0, 'bg-red-300'))}
+        ${cartao(tituloSecao('Por categoria', 'Necessidades publicadas · % atendidas')
+          + cats.slice(0, 8).map((c) => barra(`${c.categoria} · ${pctFmt(c.taxaAtendimento)}`, c.necessidades, maxCat)).join(''))}
+        ${cartao(tituloSecao('Por estado', 'Onde estão as necessidades')
+          + ufs.map((u) => barra(u.uf, u.necessidades, maxUf, 'bg-teal-500')).join(''))}
+      </div>
+      ${cartao(tituloSecao('Mês a mês', 'Interesses recebidos (verde) e doações concluídas (azul) nos últimos 12 meses')
+        + `<div class="flex items-end gap-2 h-48 mt-2">${mensal.map((m) => `
+          <div class="flex-1 flex flex-col items-center justify-end h-full" title="${UI.esc(m.mes)}: ${m.interesses} interesses, ${m.concluidos} concluídos">
+            <div class="flex items-end gap-0.5 w-full justify-center h-full">
+              <div class="w-3 bg-primary rounded-t" style="height:${(m.interesses / maxMes) * 100}%"></div>
+              <div class="w-3 bg-indigo-400 rounded-t" style="height:${(m.concluidos / maxMes) * 100}%"></div></div>
+            <span class="text-[11px] text-textGrey mt-1">${UI.esc(m.mes.slice(5))}/${UI.esc(m.mes.slice(2, 4))}</span></div>`).join('')}</div>`)}
+      <p class="text-xs text-textGrey">"Mediana" é o valor do meio: um caso esquecido por meses não distorce o número. Atualizado a cada 10 minutos.</p>
+    </div>`;
+  }
+
+  // ---- F-07: modelo de negócio visível no produto ----
+  function viewPlanos() {
+    const plano = (nome, preco, para, itens, destaque) => `
+      <div class="rounded-3xl p-6 border ${destaque ? 'border-primary bg-primary-light/40 shadow-lg' : 'border-gray-100 bg-white shadow-card'} flex flex-col">
+        <h4 class="font-montserrat font-extrabold text-lg text-textDark">${nome}</h4>
+        <p class="text-sm text-textGrey">${para}</p>
+        <p class="text-3xl font-montserrat font-black text-primary my-4">${preco}</p>
+        <ul class="space-y-2 text-sm text-textDark flex-1">${itens.map((i) => `<li class="flex gap-2"><i class="ph-fill ph-check-circle text-primary mt-0.5"></i><span>${i}</span></li>`).join('')}</ul>
+      </div>`;
+    root().innerHTML = `<div class="max-w-6xl mx-auto space-y-8 slide-up pb-6">
+      <div class="text-center">
+        <h3 class="text-3xl font-montserrat font-extrabold text-textDark">Grátis para quem doa e para quem recebe.</h3>
+        <p class="text-textGrey font-medium mt-2 max-w-2xl mx-auto">Nenhum centavo da doação fica com a plataforma. Quem paga é quem precisa <b>medir e comprovar</b> impacto social: empresas e prefeituras.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+        ${plano('Doador', 'R$ 0', 'Pessoas que querem ajudar', ['Match com necessidades perto de você', 'Chat direto com a ONG', 'PIX direto para a ONG, sem taxa', 'Prestação de contas com fotos'])}
+        ${plano('ONG', 'R$ 0', 'Para sempre, no plano básico', ['Publicar necessidades e campanhas', 'Receber interesses e conversar', 'Indicadores e selo de transparência', 'Assistente de IA para escrever os textos'])}
+        ${plano('Empresa ESG', 'a partir de R$ 490/mês', 'Empresas com metas de impacto social', ['Campanha interna de doação para os funcionários', 'Empresa dobra a doação do funcionário (matching)', 'Relatório de impacto auditável para o relatório ESG', 'Selo "Empresa parceira" nas campanhas'], true)}
+        ${plano('Prefeitura', 'licença anual', 'Secretarias de assistência social', ['Mapa das ONGs e das necessidades do município', 'Indicadores para política pública', 'Divulgação de editais e chamamentos', 'Dados abertos em formato aberto'])}
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        ${cartao(`<i class="ph-fill ph-hand-coins text-3xl text-primary"></i><h5 class="font-bold text-textDark mt-2">Por que não cobrar da doação?</h5><p class="text-sm text-textGrey mt-1">Plataformas de vaquinha ficam com uma parte de cada doação. Aqui a ONG recebe 100%, o que dá confiança a quem doa e é o nosso principal diferencial.</p>`)}
+        ${cartao(`<i class="ph-fill ph-buildings text-3xl text-primary"></i><h5 class="font-bold text-textDark mt-2">Quem paga, e por quê</h5><p class="text-sm text-textGrey mt-1">Empresas precisam comprovar investimento social (ESG) e prefeituras precisam enxergar a rede de assistência. Os dados que a plataforma já gera respondem às duas coisas.</p>`)}
+        ${cartao(`<i class="ph-fill ph-map-pin text-3xl text-primary"></i><h5 class="font-bold text-textDark mt-2">Por onde começamos</h5><p class="text-sm text-textGrey mt-1">Limeira e região: ONGs piloto, a Secretaria de Assistência Social e empresas locais. Depois, cidade a cidade, com o mesmo roteiro.</p>`)}
+      </div>
+      <p class="text-xs text-textGrey text-center">Preços de referência do modelo de negócio do projeto (em validação com ONGs e empresas da região).</p>
+    </div>`;
+  }
+
+  // ---- F-05 / F-04 / F-10: segurança, LGPD e uso consciente de IA ----
+  async function viewSeguranca() {
+    root().innerHTML = carregando();
+    let s = null, dados = null;
+    try { s = await API.seguranca(); } catch { /* segue sem o status ao vivo */ }
+    try { dados = await API.meusDados(); } catch { /* segue sem os dados */ }
+    const item = (icone, titulo, texto) => `<div class="flex gap-3 py-2"><div class="w-10 h-10 flex-shrink-0 rounded-xl bg-primary-light text-primary flex items-center justify-center"><i class="ph-fill ${icone} text-xl"></i></div>
+      <div><p class="font-bold text-textDark">${titulo}</p><p class="text-sm text-textGrey">${texto}</p></div></div>`;
+    const ok = (v) => v ? '<span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">ativo</span>'
+                        : '<span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">desligado</span>';
+    const aceite = (dados?.consentimentos || [])[0];
+    const qtd = (k) => (dados?.[k] || []).length;
+    const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+    root().innerHTML = `<div class="max-w-5xl mx-auto space-y-6 slide-up pb-6">
+      <div><h3 class="text-2xl font-montserrat font-extrabold text-textDark">Segurança, privacidade e LGPD</h3>
+        <p class="text-textGrey font-medium">O que protege os seus dados — e o que você pode fazer com eles.</p></div>
+      ${s ? cartao(`<div class="flex flex-wrap items-center gap-3"><i class="ph-fill ph-shield-check text-3xl text-primary"></i>
+          <div class="flex-1"><p class="font-bold text-textDark">Conferido agora no servidor</p>
+          <p class="text-sm text-textGrey">Criptografia em repouso ${ok(s.criptografiaEmRepouso)} · ${UI.esc(s.algoritmo)} · termos versão ${UI.esc(s.versaoDosTermos)}</p></div></div>`) : ''}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        ${cartao(tituloSecao('Como protegemos') +
+          item('ph-lock-key', 'Dados sensíveis criptografados', 'Telefone, mensagens do chat e denúncias ficam cifrados no banco com AES-256-GCM. Quem abrir o banco vê só texto embaralhado — e qualquer alteração é detectada.') +
+          item('ph-password', 'Senhas que ninguém lê', 'Guardamos só um resumo irreversível (BCrypt). Códigos de recuperação e de 2 etapas ficam em HMAC.') +
+          item('ph-user-check', 'Cada um vê só o que é seu', 'Login por token, e cada pedido é conferido contra o dono do dado. Tentativas repetidas de senha são bloqueadas.') +
+          item('ph-list-checks', 'Dados validados', 'Telefone com DDD, CNPJ com dígito verificador, senha forte e texto sem código: conferidos na tela e de novo no servidor.'))}
+        ${cartao(tituloSecao('Seus direitos (LGPD, art. 18)') +
+          item('ph-download-simple', 'Acessar e levar seus dados', 'Baixe tudo o que guardamos sobre você em um arquivo JSON.') +
+          item('ph-pencil-simple', 'Corrigir', 'Em Ajustes › Editar perfil.') +
+          item('ph-trash', 'Excluir', 'Em Ajustes › Excluir conta: seus dados pessoais são anonimizados na hora.') +
+          item('ph-toggle-left', 'Revogar permissões', 'Telefone, e-mail e perfil público se ligam e desligam em Ajustes › Privacidade.') +
+          `<div class="mt-3 p-4 bg-background rounded-2xl text-sm">
+            ${dados ? `<p><b>Guardamos hoje:</b> ${plural(qtd('interessesEConversas'), 'interesse e conversa', 'interesses e conversas')}, ${plural(qtd('doacoesPix'), 'doação PIX', 'doações PIX')}, ${plural(qtd('favoritos'), 'favorito', 'favoritos')}, ${plural(qtd('registroDeAcessos'), 'registro de acesso', 'registros de acesso')}.</p>
+            <p class="mt-1"><b>Seu aceite:</b> ${aceite ? `Termos e Política versão ${UI.esc(aceite.versao)}, em ${UI.esc(String(aceite.aceitoEm).slice(0, 10).split('-').reverse().join('/'))}` : 'conta criada antes do registro de aceite'}.</p>` : '<p>Não foi possível carregar seus dados agora.</p>'}
+            <button id="btn-meus-dados" ${dados ? '' : 'disabled'} class="mt-3 px-4 py-2.5 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl disabled:opacity-50"><i class="ph ph-download-simple"></i> Baixar meus dados (JSON)</button>
+          </div>`)}
+      </div>
+      ${cartao(tituloSecao('Como usamos inteligência artificial', 'Uso consciente: onde a IA entra, o que ela recebe e o que acontece quando ela falha') +
+        `<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2 text-sm">
+          <div><p class="font-bold text-textDark">Onde</p><p class="text-textGrey">Dora (o que doar e para quem), redação de necessidades, texto "Sobre" da ONG, resumo de impacto e leitura de fotos de itens.</p></div>
+          <div><p class="font-bold text-textDark">O que ela recebe</p><p class="text-textGrey">Só o texto da pergunta e dados públicos da plataforma. E-mail, telefone, CPF e CNPJ são removidos antes do envio ao provedor (Groq, EUA).</p></div>
+          <div><p class="font-bold text-textDark">Quando falha</p><p class="text-textGrey">Se a IA cair, um modo por regras responde sozinho. A resposta da IA é uma sugestão: ela pode errar, e a decisão é sempre sua.</p></div>
+        </div>`)}
+    </div>`;
+    const b = $('#btn-meus-dados');
+    if (b && dados) b.addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'connect-ong-meus-dados.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      UI.toast('Arquivo baixado ✓', 'ok');
+    });
+  }
+
+  // =========================================================================
   // Roteador
   // =========================================================================
   const VIEWS = {
@@ -3169,6 +3341,7 @@ const App = (() => {
     ongs: viewOngs, favoritos: viewFavoritos, impacto: viewImpacto, ranking: viewRanking,
     doacoes: viewDoacoes, config: viewConfig, sobre: viewSobre, atividades: viewAtividades,
     mapa: viewMapa, comparar: viewComparar,
+    resultados: viewResultados, planos: viewPlanos, seguranca: viewSeguranca,
   };
   function irPara(rota) {
     fecharHoverOng();
@@ -3313,16 +3486,27 @@ const App = (() => {
       mostrarApp();
     });
     submitAuth($('#form-cadastro'), async (d) => {
+      // F-02: mesmas regras da API, com a mensagem do campo que falhou.
+      const erroCampo = Validadores.primeiro([
+        ['Nome', Validadores.nomeProprio(d.nome)],
+        ['Senha', Validadores.senhaForte(d.senha)],
+        ['Telefone', Validadores.telefone(d.telefone)],
+        ['Cidade', Validadores.nomeProprio(d.cidade)],
+      ]);
+      if (erroCampo) throw new Error(erroCampo);
       if (d.senha !== d.confirmarSenha) throw new Error('As senhas não conferem.');
       if (!d.lgpd) throw new Error('É preciso aceitar a Política de Privacidade.');
       const payload = { nome: d.nome, email: d.email, senha: d.senha,
-        telefone: d.telefone || null, cidade: d.cidade || null, estado: (d.uf || '').toUpperCase() || null };
+        telefone: d.telefone || null, cidade: d.cidade || null, estado: (d.uf || '').toUpperCase() || null,
+        aceiteTermos: true }; // LGPD: a API grava o aceite (versão, data e IP)
       await API.registrar(payload);
       const r = await API.login(d.email, d.senha); // entra direto
       API.salvarSessao(r);
       UI.toast('Conta criada! Bem-vindo 💚', 'ok');
       mostrarApp();
     });
+
+    Validadores.mascaraTelefone(document.querySelector('#form-cadastro [name="telefone"]'));
 
     // Alternar login <-> cadastro
     document.querySelectorAll('[data-ir]').forEach((b) => b.addEventListener('click', () => {
@@ -3368,7 +3552,7 @@ const App = (() => {
       <input name="email" type="email" required placeholder="Seu e-mail" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       <div id="reset-extra" class="space-y-3 hidden">
         <input name="codigo" placeholder="Código recebido" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
-        <input name="novaSenha" type="password" minlength="6" placeholder="Nova senha" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
+        <input name="novaSenha" type="password" minlength="8" placeholder="Nova senha (8+ com letras e números)" class="w-full p-3.5 bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-primary">
       </div>
       <p data-erro class="text-sm font-semibold text-red-600 hidden"></p>
       <button class="btn-submit w-full py-3.5 bg-primary hover:bg-primary-dark text-white font-montserrat font-bold rounded-2xl disabled:opacity-60">Enviar código</button>
@@ -3385,6 +3569,8 @@ const App = (() => {
           btn.textContent = 'Redefinir senha'; btn.disabled = false;
           UI.toast('Se o e-mail existir, o código foi enviado. Na feira, use o código demo.', 'info');
         } else {
+          const erroSenha = Validadores.senhaForte(f.novaSenha.value);
+          if (erroSenha) throw new Error(erroSenha);
           await API.redefinirSenha(f.email.value, f.codigo.value, f.novaSenha.value);
           fecharModal(); UI.toast('Senha redefinida! Faça login.', 'ok');
         }

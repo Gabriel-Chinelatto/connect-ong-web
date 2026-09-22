@@ -164,11 +164,11 @@
                     </div>
                     <div class="relative">
                         <i class="ph ph-phone text-xl text-textGrey absolute inset-y-0 left-4 flex items-center h-full"></i>
-                        <input name="telefone" placeholder="Telefone (opcional)" class="w-full pl-12 pr-4 py-3.5 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white">
+                        <input name="telefone" inputmode="tel" maxlength="15" placeholder="Telefone (opcional)" class="w-full pl-12 pr-4 py-3.5 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white">
                     </div>
                     <div class="relative">
                         <i class="ph ph-lock-key text-xl text-textGrey absolute inset-y-0 left-4 flex items-center h-full"></i>
-                        <input type="password" name="senha" required minlength="6" placeholder="Senha (mín. 6)" class="w-full pl-12 pr-12 py-3.5 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white">
+                        <input type="password" name="senha" required minlength="8" placeholder="Senha (8+ com letras e números)" class="w-full pl-12 pr-12 py-3.5 bg-background rounded-2xl font-medium placeholder-textGrey/70 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white">
                         <button type="button" data-ver-senha class="absolute inset-y-0 right-4 flex items-center text-textGrey hover:text-primary"><i class="ph ph-eye text-xl"></i></button>
                     </div>
                     <div class="relative">
@@ -263,6 +263,7 @@
     <!-- Relatório imprimível/PDF (window.print) — recurso exclusivo da web -->
     <div id="print-root" aria-hidden="true"></div>
 
+    <script src="js/validadores.js"></script>
     <script src="js/api.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/app.js"></script>

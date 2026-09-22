@@ -135,6 +135,10 @@ const API = (() => {
     categorias: () => get('/categorias'),
     campanhas: () => get('/campanhas'),
     estatisticas: () => get('/publico/estatisticas'),
+    // Plano de Ação pós-FECITEC
+    indicadores: () => get('/publico/indicadores'),           // F-08
+    seguranca: () => get('/publico/seguranca'),               // F-05
+    meusDados: () => get('/usuarios/' + usuario().id + '/meus-dados'), // F-04 (LGPD)
 
     // Interesse (match)
     demonstrarInteresse: (necessidadeId) =>
