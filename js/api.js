@@ -73,7 +73,11 @@ const API = (() => {
         body: corpo != null ? JSON.stringify(corpo) : undefined,
       });
     } catch (e) {
-      throw new Error('Não foi possível falar com o servidor. Ele está rodando em ' + BASE + '?');
+      // BASE vazio = mesma origem (serve.py). Dizer "rodando em ?" nao ajudava
+      // ninguem; na feira o caso real e a janela da API fechada/nao iniciada.
+      throw new Error(BASE
+        ? ('Não foi possível falar com o servidor (' + BASE + '). Ele está ligado?')
+        : 'Servidor fora do ar. Abra o INICIAR-FEIRA.bat e espere a janela "API" dizer "Started ConnectongApiApplication".');
     }
 
     if (resp.status === 401) {

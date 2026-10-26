@@ -7,10 +7,31 @@ REM   Connect ONG - INICIAR PARA A FEIRA (tudo local = rapido)
 REM   Duplo clique neste arquivo. Ele liga a API, o site e abre
 REM   o navegador. Feito para a apresentacao ser instantanea.
 REM
-REM   >>> AJUSTE ESTES 2 CAMINHOS SE MUDAR DE COMPUTADOR <<<
+REM   O backend e PROCURADO sozinho (nao precisa mais editar caminho).
+REM   Corrigido em 02/09/2026: o caminho fixo era o do PC da escola
+REM   (01gabriel.MAQCHINELATTO); em qualquer outra maquina a janela da API
+REM   morria na hora e o site abria SEM backend. Efeito visivel: o login
+REM   ficava sem as estatisticas e o botao "Entrar com a conta de
+REM   demonstracao" nao entrava - parecia bug do site, era a API desligada.
 REM ============================================================
-set "BACKEND=C:\Users\01gabriel.MAQCHINELATTO\IdeaProjects\connect-ong-api\API - Chinelatto - att2\API - Chinelatto\API - Chinelatto"
 set "WEB=%~dp0"
+set "SUB=IdeaProjects\connect-ong-api\API - Chinelatto - att2\API - Chinelatto\API - Chinelatto"
+set "BACKEND="
+if exist "%USERPROFILE%\%SUB%\pom.xml" set "BACKEND=%USERPROFILE%\%SUB%"
+if not defined BACKEND if exist "C:\Users\gabri\%SUB%\pom.xml" set "BACKEND=C:\Users\gabri\%SUB%"
+if not defined BACKEND if exist "C:\Users\01gabriel.MAQCHINELATTO\%SUB%\pom.xml" set "BACKEND=C:\Users\01gabriel.MAQCHINELATTO\%SUB%"
+if not defined BACKEND (
+  echo.
+  echo   [ERRO] Nao encontrei a pasta do backend ^(a API^).
+  echo          Procurei em:  %USERPROFILE%\IdeaProjects\connect-ong-api\...
+  echo.
+  echo   Sem a API o site abre, mas o login e o botao de demonstracao NAO
+  echo   funcionam. Abra este .bat no Bloco de Notas e ajuste a linha SUB=
+  echo.
+  pause
+  exit /b 1
+)
+echo   Backend encontrado em: %BACKEND%
 REM ============================================================
 
 set "SPRING_PROFILES_ACTIVE=local"
